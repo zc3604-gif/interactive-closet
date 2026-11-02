@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  base: "/Closet/",
+  base: "/interactive-closet/",
   appType: "mpa",
   server: {
     open: true,
