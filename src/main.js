@@ -7,7 +7,7 @@ import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { Cloth } from "./cloth.js";
 
-const HARD_NAME = /floor|rug|ground|rack|rail|pole|hanger|hangar|hook|wire|rod|stand|wall|cube|wood|shelf|frame|base|plane|pCube|pCylinder|pPipe|pTorus|closet|room/i;
+const HARD_NAME = /floor|rug|ground|rack|rail|pole|hanger|hangar|hook|wire|rod|stand|wall|cube|wood|shelf|frame|base|plane|pCube|pCylinder|pPipe|pTorus|pDisc|closet|room|pasted|sweep|group\d+/i;
 const SOFT_NAME = /cloth|shirt|jacket|coat|dress|pant|jean|skirt|sweater|cardigan|hoodie|garment|tee|blouse|meshy|knit|leather|apparel|gown/i;
 const MAX_DEFORM_VERTS = 28000;
 
@@ -362,12 +362,25 @@ function clearCloset() {
   blobUrls.splice(0).forEach((url) => URL.revokeObjectURL(url));
 }
 
+function colorForName(name) {
+  if (/jacket|leather/i.test(name)) return 0x3a3532;
+  if (/cardigan|hoodie|sweater|knit/i.test(name)) return 0x8a5346;
+  if (/floor|ground|rug/i.test(name)) return 0x4a4036;
+  return 0xc2b6a6;
+}
+
 function prepareModel(model) {
   model.traverse((child) => {
     if (!child.isMesh) return;
     child.castShadow = true;
     child.receiveShadow = true;
     child.material = toStandard(child.material);
+    for (const material of materialsOf(child)) {
+      if (!material?.color || material.map) continue;
+      const sum = material.color.r + material.color.g + material.color.b;
+      if (sum > 0.08) continue;
+      material.color.setHex(colorForName(meshName(child)));
+    }
     if (child.geometry?.attributes.position) {
       child.geometry = child.geometry.clone();
     }
@@ -680,11 +693,15 @@ async function assertModelUrl(url) {
   }
 }
 
-async function loadObjFromUrl(url, resourcePath = "/models/") {
+function modelUrl(file) {
+  return `${import.meta.env.BASE_URL}models/${file}`;
+}
+
+async function loadObjFromUrl(url) {
   const objLoader = new OBJLoader();
   try {
     const mtlLoader = new MTLLoader();
-    mtlLoader.setResourcePath(resourcePath);
+    mtlLoader.setResourcePath(url.slice(0, url.lastIndexOf("/") + 1));
     const materials = await mtlLoader.loadAsync(url.replace(/\.obj$/i, ".mtl"));
     materials.preload();
     objLoader.setMaterials(materials);
@@ -740,10 +757,10 @@ async function loadFromFiles(fileList) {
 
 async function tryLoadCloset() {
   const candidates = [
-    { url: "/models/closet.glb", load: async () => (await new GLTFLoader().loadAsync("/models/closet.glb")).scene },
-    { url: "/models/closet.gltf", load: async () => (await new GLTFLoader().loadAsync("/models/closet.gltf")).scene },
-    { url: "/models/closet.fbx", load: () => new FBXLoader().loadAsync("/models/closet.fbx") },
-    { url: "/models/closet.obj", load: () => loadObjFromUrl("/models/closet.obj") },
+    { url: modelUrl("closet.glb"), load: async () => (await new GLTFLoader().loadAsync(modelUrl("closet.glb"))).scene },
+    { url: modelUrl("closet.gltf"), load: async () => (await new GLTFLoader().loadAsync(modelUrl("closet.gltf"))).scene },
+    { url: modelUrl("closet.fbx"), load: () => new FBXLoader().loadAsync(modelUrl("closet.fbx")) },
+    { url: modelUrl("closet.obj"), load: () => loadObjFromUrl(modelUrl("closet.obj")) },
   ];
 
   for (const candidate of candidates) {
