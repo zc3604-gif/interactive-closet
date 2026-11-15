@@ -101,14 +101,33 @@ body {
   line-height: 1;
 }
 
-#axes span:first-child {
+#axes .axis-label.x {
   top: calc(50% - 16px);
   right: 14px;
 }
 
-#axes span:last-child {
+#axes .axis-label.y {
   top: 48px;
   left: calc(50% + 8px);
+}
+
+#axes .tick {
+  font-size: 10px;
+}
+
+#axes .tick-x {
+  top: calc(50% - 14px);
+  transform: translateX(-50%);
+}
+
+#axes .tick-y {
+  left: calc(50% + 6px);
+  transform: translateY(-50%);
+}
+
+#axes .origin {
+  top: calc(50% + 6px);
+  left: calc(50% + 6px);
 }
 
 #wires {

@@ -467,7 +467,10 @@ viewport.addEventListener(
 window.addEventListener("pointerup", endDrag);
 window.addEventListener("pointercancel", endDrag);
 
-window.addEventListener("resize", frameNetwork);
+window.addEventListener("resize", () => {
+  frameNetwork();
+  drawAxisNumbers();
+});
 if (backdrop && !backdrop.complete) {
   backdrop.addEventListener("load", () => {
     fitted = false;
@@ -475,6 +478,42 @@ if (backdrop && !backdrop.complete) {
   });
 }
 frameNetwork();
+drawAxisNumbers();
+
+function drawAxisNumbers() {
+  const axes = document.querySelector("#axes");
+  if (!axes) return;
+  const step = 48;
+  axes.querySelectorAll(".tick").forEach((tick) => tick.remove());
+  const width = viewport.clientWidth;
+  const height = viewport.clientHeight;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const origin = document.createElement("span");
+  origin.className = "tick origin";
+  origin.textContent = "0";
+  axes.append(origin);
+  for (let index = 1; centerX + index * step < width - 28; index += 1) {
+    addAxisTick(axes, "tick-x", String(index), centerX + index * step, null);
+    addAxisTick(axes, "tick-x", String(-index), centerX - index * step, null);
+  }
+  for (let index = 1; centerY - index * step > 64; index += 1) {
+    addAxisTick(axes, "tick-y", String(index), null, centerY - index * step);
+  }
+  for (let index = 1; centerY + index * step < height - 12; index += 1) {
+    addAxisTick(axes, "tick-y", String(-index), null, centerY + index * step);
+  }
+}
+
+function addAxisTick(axes, kind, label, x, y) {
+  if (kind === "tick-x" && x < 28) return;
+  const tick = document.createElement("span");
+  tick.className = `tick ${kind}`;
+  tick.textContent = label;
+  if (x != null) tick.style.left = `${x}px`;
+  if (y != null) tick.style.top = `${y}px`;
+  axes.append(tick);
+}
 
 function previewArtist() {
   return `<svg viewBox="0 0 240 132" aria-hidden="true">
