@@ -182,7 +182,7 @@ function bindEditable(element, moduleId, field) {
   const saved = readTextStore()[moduleId];
   if (saved && typeof saved[field] === "string") element.textContent = saved[field];
   element.spellcheck = false;
-  element.addEventListener("pointerdown", (event) => event.stopPropagation());
+  if (moduleId !== "p5") element.addEventListener("pointerdown", (event) => event.stopPropagation());
   element.addEventListener("blur", () => writeTextStore(moduleId, field, element.textContent));
   element.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && field !== "body") event.preventDefault();
@@ -192,6 +192,8 @@ function bindEditable(element, moduleId, field) {
 for (const module of modules) {
   const node = document.createElement("article");
   node.className = module.small ? "node small" : "node";
+  if (module.id === "p5") node.classList.add("link");
+  if (module.id === "p5") node.title = "Open p5.js works";
   node.style.left = `${module.x}px`;
   node.style.top = `${module.y}px`;
   const preview = document.createElement("div");
@@ -360,6 +362,9 @@ viewport.addEventListener(
 );
 
 let dragged = null;
+let dragMoved = false;
+let dragOriginX = 0;
+let dragOriginY = 0;
 let lastX = 0;
 let lastY = 0;
 let front = 1;
@@ -373,6 +378,9 @@ function startNodeDrag(module, event) {
   event.stopPropagation();
   event.preventDefault();
   dragged = module;
+  dragMoved = false;
+  dragOriginX = event.clientX;
+  dragOriginY = event.clientY;
   lastX = event.clientX;
   lastY = event.clientY;
   front += 1;
@@ -426,6 +434,7 @@ window.addEventListener(
       return;
     }
     if (!dragged) return;
+    if (Math.hypot(event.clientX - dragOriginX, event.clientY - dragOriginY) > 4) dragMoved = true;
     dragged.x += (event.clientX - lastX) / scale;
     dragged.y += (event.clientY - lastY) / scale;
     lastX = event.clientX;
@@ -437,10 +446,15 @@ window.addEventListener(
 );
 
 function endDrag(event) {
+  const module = dragged;
+  const moved = dragMoved;
   if (event && touches.has(event.pointerId)) touches.delete(event.pointerId);
   if (touches.size > 0) return;
   if (dragged) dragged.el.classList.remove("lifting");
   dragged = null;
+  if (event?.type === "pointerup" && module?.id === "p5" && !moved) {
+    window.location.href = "./p5.html";
+  }
 }
 
 viewport.addEventListener(

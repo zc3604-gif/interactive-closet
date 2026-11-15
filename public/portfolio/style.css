@@ -95,6 +95,14 @@ body {
   z-index: 5;
 }
 
+.node.link {
+  cursor: pointer;
+}
+
+.node.link.lifting {
+  cursor: grabbing;
+}
+
 .node.small {
   width: 112px;
 }
@@ -199,5 +207,123 @@ p {
   color: #111;
   font-size: 13.5px;
   line-height: 1.45;
+}
+
+body.works-page {
+  height: auto;
+  min-height: 100%;
+  overflow: auto;
+  background-color: #fff;
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+
+.works-page .chrome a {
+  pointer-events: auto;
+  color: inherit;
+  text-decoration: none;
+}
+
+.works-page .chrome a:hover {
+  text-decoration: underline;
+}
+
+.works {
+  position: relative;
+  z-index: 1;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 78px 28px 56px;
+}
+
+.works-head {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.works-head h1,
+.works-head p {
+  margin: 0;
+}
+
+.works-head p {
+  color: #333;
+  font-size: 13px;
+}
+
+.add-work {
+  margin-left: auto;
+  border: 1px solid #111;
+  background: #fff;
+  padding: 6px 10px;
+  color: #111;
+  font: inherit;
+  cursor: pointer;
+}
+
+.add-work input {
+  display: none;
+}
+
+.works-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.work {
+  border: 1px solid #111;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.work .frame {
+  height: 180px;
+  border-bottom: 1px solid #111;
+  background: transparent;
+}
+
+.work img,
+.work video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: transparent;
+}
+
+.work .meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+
+.work .title {
+  flex: 1;
+  min-height: 1.2em;
+  font-size: 14px;
+}
+
+.work .remove {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #111;
+  background: #fff;
+  color: #111;
+  font: inherit;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.empty {
+  max-width: 360px;
+  border: 1px solid #111;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 22px;
+  font-size: 14px;
 }
 
