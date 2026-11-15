@@ -40,7 +40,6 @@ const modules = [
   { id: "maya", x: 808, y: 92, w: 112, h: 84, small: true, kind: "Maya", preview: () => previewOp("cube") },
   { id: "hydra", x: 808, y: 184, w: 112, h: 84, small: true, kind: "Hydra", preview: () => previewOp("synth") },
   { id: "zbrush", x: 808, y: 276, w: 112, h: 84, small: true, kind: "ZBrush", preview: () => previewOp("sculpt") },
-  { id: "module8", x: 992, y: 352, w: 112, h: 84, small: true, kind: "Module8", preview: () => previewOp("sliders") },
 ];
 
 const links = [
