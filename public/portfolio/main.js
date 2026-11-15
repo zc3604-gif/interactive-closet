@@ -1,5 +1,3 @@
-import { startArt } from "./art.js";
-
 const modules = [
   {
     id: "artist",
@@ -94,8 +92,6 @@ const links = [
 ];
 
 const viewport = document.querySelector("#viewport");
-const gridLayer = document.querySelector("#grid");
-startArt(viewport);
 const world = document.querySelector("#world");
 
 const byId = Object.fromEntries(modules.map((module) => [module.id, module]));
@@ -255,9 +251,6 @@ function drawAxisMarks(originX, originY) {
 
 function applyView() {
   world.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
-  const grid = 24 * scale;
-  gridLayer.style.backgroundSize = `${grid}px ${grid}px`;
-  gridLayer.style.backgroundPosition = `${x}px ${y}px`;
   const originX = x;
   const originY = y;
   axes.style.setProperty("--axis-x", `${originX}px`);
