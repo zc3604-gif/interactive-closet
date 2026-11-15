@@ -14,7 +14,7 @@ const modules = [
   },
   {
     id: "works",
-    x: 652,
+    x: 496,
     y: 128,
     w: 240,
     h: 292,
@@ -25,7 +25,7 @@ const modules = [
   },
   {
     id: "3d",
-    x: 652,
+    x: 496,
     y: 484,
     w: 240,
     h: 292,
@@ -36,7 +36,7 @@ const modules = [
   },
   {
     id: "systems",
-    x: 1304,
+    x: 992,
     y: 362,
     w: 240,
     h: 292,
@@ -45,22 +45,22 @@ const modules = [
     body: "JavaScript, p5.js, Three.js, TouchDesigner, Hydra, Resolume, MadMapper, and Module8.",
     preview: previewSystems,
   },
-  { id: "production", x: 390, y: 0, w: 112, h: 84, small: true, kind: "Production", preview: () => previewOp("production") },
-  { id: "p5", x: 390, y: 112, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
-  { id: "vj", x: 390, y: 224, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
-  { id: "video", x: 390, y: 336, w: 112, h: 84, small: true, kind: "Video", preview: () => previewOp("film") },
-  { id: "face", x: 390, y: 468, w: 112, h: 84, small: true, kind: "Interface", preview: () => previewOp("grid") },
-  { id: "char", x: 390, y: 580, w: 112, h: 84, small: true, kind: "Character", preview: () => previewOp("figure") },
-  { id: "ae", x: 1042, y: 0, w: 112, h: 84, small: true, kind: "After Effects", preview: () => previewOp("layers") },
-  { id: "premiere", x: 1042, y: 112, w: 112, h: 84, small: true, kind: "Premiere", preview: () => previewOp("clapper") },
-  { id: "resolume", x: 1042, y: 224, w: 112, h: 84, small: true, kind: "Resolume", preview: () => previewOp("clips") },
-  { id: "maya", x: 1042, y: 336, w: 112, h: 84, small: true, kind: "Maya", preview: () => previewOp("cube") },
-  { id: "hydra", x: 1042, y: 468, w: 112, h: 84, small: true, kind: "Hydra", preview: () => previewOp("synth") },
-  { id: "td", x: 1042, y: 580, w: 112, h: 84, small: true, kind: "TouchDesigner", preview: () => previewOp("patch") },
-  { id: "blender", x: 1042, y: 692, w: 112, h: 84, small: true, kind: "Blender", preview: () => previewOp("blender") },
-  { id: "zbrush", x: 1042, y: 804, w: 112, h: 84, small: true, kind: "ZBrush", preview: () => previewOp("sculpt") },
-  { id: "javascript", x: 1694, y: 352, w: 112, h: 84, small: true, kind: "JavaScript", preview: () => previewOp("code") },
-  { id: "module8", x: 1694, y: 464, w: 112, h: 84, small: true, kind: "Module8", preview: () => previewOp("sliders") },
+  { id: "production", x: 312, y: 0, w: 112, h: 84, small: true, kind: "Production", preview: () => previewOp("production") },
+  { id: "p5", x: 312, y: 112, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
+  { id: "vj", x: 312, y: 224, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
+  { id: "video", x: 312, y: 336, w: 112, h: 84, small: true, kind: "Video", preview: () => previewOp("film") },
+  { id: "face", x: 312, y: 468, w: 112, h: 84, small: true, kind: "Interface", preview: () => previewOp("grid") },
+  { id: "char", x: 312, y: 580, w: 112, h: 84, small: true, kind: "Character", preview: () => previewOp("figure") },
+  { id: "ae", x: 808, y: 0, w: 112, h: 84, small: true, kind: "After Effects", preview: () => previewOp("layers") },
+  { id: "premiere", x: 808, y: 112, w: 112, h: 84, small: true, kind: "Premiere", preview: () => previewOp("clapper") },
+  { id: "resolume", x: 808, y: 224, w: 112, h: 84, small: true, kind: "Resolume", preview: () => previewOp("clips") },
+  { id: "maya", x: 808, y: 336, w: 112, h: 84, small: true, kind: "Maya", preview: () => previewOp("cube") },
+  { id: "hydra", x: 808, y: 468, w: 112, h: 84, small: true, kind: "Hydra", preview: () => previewOp("synth") },
+  { id: "td", x: 808, y: 580, w: 112, h: 84, small: true, kind: "TouchDesigner", preview: () => previewOp("patch") },
+  { id: "blender", x: 808, y: 692, w: 112, h: 84, small: true, kind: "Blender", preview: () => previewOp("blender") },
+  { id: "zbrush", x: 808, y: 804, w: 112, h: 84, small: true, kind: "ZBrush", preview: () => previewOp("sculpt") },
+  { id: "javascript", x: 1304, y: 352, w: 112, h: 84, small: true, kind: "JavaScript", preview: () => previewOp("code") },
+  { id: "module8", x: 1304, y: 464, w: 112, h: 84, small: true, kind: "Module8", preview: () => previewOp("sliders") },
 ];
 
 const links = [
@@ -275,11 +275,11 @@ function frameNetwork() {
   const maxY = Math.max(...modules.map((module) => module.y + module.h));
   const stage = document.querySelector("#stage");
   const stageWidth = stage ? stage.getBoundingClientRect().width : 0;
-  const left = Math.max(16, stageWidth * 0.46);
-  const rightSpace = viewport.clientWidth * 0.3;
-  const width = Math.max(240, viewport.clientWidth - left - rightSpace);
+  const left = Math.max(16, stageWidth * 0.42);
+  const rightSpace = Math.max(88, viewport.clientWidth * 0.1);
+  const width = Math.max(280, viewport.clientWidth - left - rightSpace);
   const height = viewport.clientHeight;
-  const padding = 64;
+  const padding = 28;
   scale = Math.min(width / (maxX - minX), (height - padding * 2) / (maxY - minY));
   x = left - minX * scale;
   y = (height - (maxY - minY) * scale) / 2 - minY * scale;
