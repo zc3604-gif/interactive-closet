@@ -223,8 +223,8 @@ function clampX(span) {
 }
 
 function placePortrait() {
-  const aspect = (backdrop && backdrop.naturalWidth ? backdrop.naturalWidth : 3072) /
-    (backdrop && backdrop.naturalHeight ? backdrop.naturalHeight : 1848);
+  const aspect = (backdrop && backdrop.naturalWidth ? backdrop.naturalWidth : 1024) /
+    (backdrop && backdrop.naturalHeight ? backdrop.naturalHeight : 615);
   const faceRightRatio = 0.51;
   const viewW = viewport.clientWidth;
   const viewH = viewport.clientHeight;
