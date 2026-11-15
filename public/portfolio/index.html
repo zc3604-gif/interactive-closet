@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zihan — Portfolio</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="chrome">
+      <p class="path">Zihan <span>/ portfolio</span></p>
+      <p class="help">Drag a module to rearrange it. Drag the grid to move. Scroll to zoom.</p>
+    </header>
+    <aside id="stage">
+      <p class="stage-label">p5.js <span>/ functions</span></p>
+      <pre class="code"><code>let art;
+let clock = 0;
+let moving = true;
+let mx = 0;
+let my = 0;
+
+const ZOOM = 1.8;
+const SPEED = 0.35;
+const CONTRAST = 1.4;
+
+function setup() {
+  createCanvas(700, 700, WEBGL);
+  pixelDensity(1);
+  noStroke();
+
+  art = createShader(vertexCode, fragmentCode);
+}
+
+function draw() {
+  if (moving) {
+    clock += min(deltaTime, 50) * 0.001 * SPEED;
+  }
+
+  if (
+    mouseX &gt;= 0 &amp;&amp; mouseX &lt;= width &amp;&amp;
+    mouseY &gt;= 0 &amp;&amp; mouseY &lt;= height
+  ) {
+    mx = lerp(mx, map(mouseX, 0, width, -1, 1), 0.04);
+    my = lerp(my, map(mouseY, 0, height, 1, -1), 0.04);
+  }
+
+  shader(art);
+
+  art.setUniform("uResolution", [width, height]);
+  art.setUniform("uMouse", [mx, my]);
+  art.setUniform("uTime", clock);
+  art.setUniform("uZoom", ZOOM);
+  art.setUniform("uContrast", CONTRAST);
+
+  plane(width, height);
+}
+
+function keyPressed() {
+  if (key === " ") {
+    moving = !moving;
+    return false;
+  }
+
+  if (key === "s" || key === "S") {
+    saveCanvas("silver-math-art", "png");
+  }
+}
+
+vec2 multiplyComplex(vec2 a, vec2 b) {
+  return vec2(
+    a.x * b.x - a.y * b.y,
+    a.x * b.y + a.y * b.x
+  );
+}
+
+vec2 divideComplex(vec2 a, vec2 b) {
+  float denominator = max(dot(b, b), 0.00001);
+  return vec2(
+    a.x * b.x + a.y * b.y,
+    a.y * b.x - a.x * b.y
+  ) / denominator;
+}</code></pre>
+    </aside>
+    <div id="viewport" tabindex="0">
+      <canvas id="art"></canvas>
+      <div id="grid"></div>
+      <div id="axes" aria-hidden="true">
+        <div class="axis axis-x"></div>
+        <div class="axis axis-y"></div>
+        <svg id="axis-ticks"></svg>
+        <span class="axis-label axis-label-x">x</span>
+        <span class="axis-label axis-label-y">y</span>
+      </div>
+      <div id="world"></div>
+    </div>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

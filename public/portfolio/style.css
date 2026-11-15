@@ -1,0 +1,315 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #101010;
+  color: #ececec;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+body {
+  overflow: hidden;
+}
+
+.chrome {
+  position: fixed;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 18px;
+  pointer-events: none;
+  background: linear-gradient(#101010, transparent);
+}
+
+.path {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+}
+
+.path span {
+  color: #8d8d8d;
+}
+
+.help {
+  margin: 0;
+  color: #9a9a9a;
+  font-size: 13px;
+}
+
+#stage {
+  position: fixed;
+  z-index: 3;
+  top: 58px;
+  left: 16px;
+  bottom: 16px;
+  width: min(420px, 38vw);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: transparent;
+  border: none;
+}
+
+.stage-label {
+  margin: 0;
+  color: #f2f2f2;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.stage-label span {
+  color: #8d8d8d;
+}
+
+.code {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  color: #f3f3f3;
+  background: transparent;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+.code::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.code::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.code::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+#viewport {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background-color: #101010;
+}
+
+#art,
+#grid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+#grid {
+  clip-path: inset(0 0 0 calc(min(420px, 38vw) + 40px));
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+}
+
+#viewport.dragging {
+  cursor: grabbing;
+}
+
+#axes {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  clip-path: inset(0 0 0 calc(min(420px, 38vw) + 40px));
+  --axis-x: 0px;
+  --axis-y: 0px;
+}
+
+.axis {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.axis-x {
+  left: 0;
+  right: 0;
+  top: var(--axis-y);
+  height: 1px;
+}
+
+.axis-y {
+  top: 0;
+  bottom: 0;
+  left: var(--axis-x);
+  width: 1px;
+}
+
+.axis-label {
+  position: absolute;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.axis-label-x {
+  left: calc(var(--axis-x) + 8px);
+  top: calc(var(--axis-y) - 16px);
+}
+
+.axis-label-y {
+  left: calc(var(--axis-x) + 8px);
+  top: calc(var(--axis-y) + 8px);
+}
+
+#axis-ticks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+#axis-ticks line {
+  stroke: rgba(255, 255, 255, 0.45);
+  stroke-width: 1;
+}
+
+#axis-ticks text {
+  fill: rgba(255, 255, 255, 0.55);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+}
+
+#world {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+#wires {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.wire {
+  fill: none;
+  stroke: rgba(226, 226, 226, 0.82);
+  stroke-width: 1.35;
+}
+
+.traveler {
+  fill: none;
+  stroke: #f4f4f4;
+  stroke-width: 1.6;
+}
+
+.node {
+  position: absolute;
+  width: 240px;
+  background: #1a1a1a;
+  border: 1px solid #3c3c3c;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  cursor: grab;
+  user-select: none;
+}
+
+.node.lifting {
+  cursor: grabbing;
+  z-index: 5;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.node.small {
+  width: 112px;
+}
+
+.node.small .preview {
+  height: 52px;
+}
+
+.node.small .kind {
+  padding: 6px 8px 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.preview {
+  height: 132px;
+  border-bottom: 1px solid #2e2e2e;
+  background: #0e0e0e;
+}
+
+.preview svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.copy {
+  padding: 12px 14px 14px;
+}
+
+.kind {
+  margin: 0 0 4px;
+  color: #8f8f8f;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+p {
+  margin: 0;
+}
+
+.body {
+  color: #c8c8c8;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.port {
+  position: absolute;
+  top: 66px;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  background: #d0d0d0;
+  border: 1px solid #101010;
+}
+
+.port.in {
+  left: -5px;
+}
+
+.port.out {
+  right: -5px;
+}
