@@ -289,21 +289,13 @@ function clampX(span) {
 }
 
 function placePortrait() {
-  if (!backdrop) return 48;
-  const aspect = (backdrop.naturalWidth || 1024) / (backdrop.naturalHeight || 616);
+  const aspect = (backdrop && backdrop.naturalWidth ? backdrop.naturalWidth : 3072) /
+    (backdrop && backdrop.naturalHeight ? backdrop.naturalHeight : 1848);
   const viewW = viewport.clientWidth;
   const viewH = viewport.clientHeight;
-  const faceRatio = 0.46;
-  let displayedW = viewH * aspect;
-  const maxFace = Math.min(viewW * 0.4, 620);
-  if (displayedW * faceRatio > maxFace) displayedW = maxFace / faceRatio;
-  const displayedH = displayedW / aspect;
-  const shift = displayedW * 0.14;
-  backdrop.style.width = `${displayedW}px`;
-  backdrop.style.height = `${displayedH}px`;
-  backdrop.style.transform = `translateX(${-shift}px)`;
-  backdrop.style.top = `${Math.max(0, (viewH - displayedH) / 2)}px`;
-  return Math.round(displayedW * faceRatio + 110);
+  const displayedW = viewW / viewH > aspect ? viewW : viewH * aspect;
+  const faceRight = displayedW * 0.51;
+  return Math.round(Math.min(Math.max(faceRight + 28, 48), viewW * 0.46));
 }
 
 function frameNetwork() {
