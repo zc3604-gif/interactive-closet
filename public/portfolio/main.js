@@ -104,11 +104,11 @@ function openMediaDb() {
   });
 }
 
-function showMedia(preview, blob, type) {
+function showMedia(preview, blob, type, url) {
   preview.querySelector(".media")?.remove();
   const media = document.createElement(type.startsWith("video/") ? "video" : "img");
   media.className = "media";
-  media.src = URL.createObjectURL(blob);
+  media.src = url || URL.createObjectURL(blob);
   if (media.tagName === "VIDEO") {
     media.controls = true;
     media.loop = true;
@@ -127,6 +127,19 @@ async function saveMedia(moduleId, file) {
     tx.onerror = () => reject(tx.error);
   });
   db.close();
+}
+
+async function loadSavedMedia(moduleId, preview) {
+  if (moduleId === "p5" || moduleId === "vj" || moduleId === "video" || moduleId === "works" || moduleId === "3d") return;
+  try {
+    const response = await fetch("./saved/catalog.json", { cache: "no-store" });
+    if (!response.ok) return;
+    const catalog = await response.json();
+    const item = (catalog.modules || []).find((entry) => entry.id === moduleId);
+    if (item) showMedia(preview, null, item.type, `./${item.file}`);
+  } catch {
+    // The saved catalog is optional until uploads have been stored.
+  }
 }
 
 async function loadMedia(moduleId, preview) {
@@ -512,7 +525,9 @@ for (const module of modules) {
     if (page) window.location.href = page;
   });
   world.append(node);
-  if (module.id !== "p5" && module.id !== "vj" && module.id !== "video" && module.id !== "works" && module.id !== "3d") loadMedia(module.id, preview);
+  loadSavedMedia(module.id, preview).then(() => {
+    if (module.id !== "p5" && module.id !== "vj" && module.id !== "video" && module.id !== "works" && module.id !== "3d") return loadMedia(module.id, preview);
+  });
 }
 
 let x = 0;

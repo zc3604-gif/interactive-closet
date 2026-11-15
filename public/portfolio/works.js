@@ -2,6 +2,46 @@ const grid = document.querySelector("#works");
 const input = document.querySelector(".add-work input");
 const storeName = document.body.dataset.store || "p5";
 const urls = new Set();
+const hiddenKey = "portfolio-hidden-works";
+
+function hiddenWorkIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(hiddenKey)) || []);
+  } catch {
+    return new Set();
+  }
+}
+
+function workTitleOverride(id, fallback) {
+  try {
+    const titles = JSON.parse(localStorage.getItem("portfolio-work-titles") || "{}");
+    return titles[id] || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function rememberWorkTitle(id, title) {
+  const titles = JSON.parse(localStorage.getItem("portfolio-work-titles") || "{}");
+  titles[id] = title;
+  localStorage.setItem("portfolio-work-titles", JSON.stringify(titles));
+}
+
+function hideWork(id) {
+  const hidden = hiddenWorkIds();
+  hidden.add(id);
+  localStorage.setItem(hiddenKey, JSON.stringify([...hidden]));
+}
+
+async function loadCatalog() {
+  try {
+    const response = await fetch("./saved/catalog.json", { cache: "no-store" });
+    if (!response.ok) return { works: {} };
+    return await response.json();
+  } catch {
+    return { works: {} };
+  }
+}
 
 function openWorksDb() {
   return new Promise((resolve, reject) => {
@@ -51,9 +91,13 @@ function render(works) {
     const frame = document.createElement("div");
     frame.className = "frame";
     const media = document.createElement(work.type.startsWith("video/") ? "video" : "img");
-    const url = URL.createObjectURL(work.blob);
-    urls.add(url);
-    media.src = url;
+    if (work.src) {
+      media.src = work.src;
+    } else {
+      const url = URL.createObjectURL(work.blob);
+      urls.add(url);
+      media.src = url;
+    }
     media.alt = work.title;
     if (media.tagName === "VIDEO") {
       media.controls = true;
@@ -73,6 +117,10 @@ function render(works) {
       const next = title.textContent.trim() || "Untitled";
       title.textContent = next;
       work.title = next;
+      if (work.saved) {
+        rememberWorkTitle(work.id, next);
+        return;
+      }
       await withStore("readwrite", (store) => store.put(work));
     });
     title.addEventListener("keydown", (event) => {
@@ -87,7 +135,8 @@ function render(works) {
     remove.textContent = "×";
     remove.setAttribute("aria-label", `Remove ${work.title}`);
     remove.addEventListener("click", async () => {
-      await withStore("readwrite", (store) => store.delete(work.id));
+      if (work.saved) hideWork(work.id);
+      else await withStore("readwrite", (store) => store.delete(work.id));
       await showWorks();
     });
     meta.append(title, remove);
@@ -97,8 +146,28 @@ function render(works) {
 }
 
 async function showWorks() {
-  const works = await withStore("readonly", (store) => store.getAll());
-  works.sort((a, b) => b.created - a.created);
+  const hidden = hiddenWorkIds();
+  const catalog = await loadCatalog();
+  const saved = (catalog.works?.[storeName] || [])
+    .filter((work) => !hidden.has(work.id))
+    .map((work) => ({
+      ...work,
+      title: workTitleOverride(work.id, work.title),
+      src: `./${work.file}`,
+      saved: true,
+    }));
+  let local = [];
+  try {
+    local = await withStore("readonly", (store) => store.getAll());
+  } catch {
+    local = [];
+  }
+  const seen = new Set(saved.map((work) => work.id));
+  const works = [
+    ...saved,
+    ...local.filter((work) => !seen.has(work.id) && !hidden.has(work.id)),
+  ];
+  works.sort((a, b) => (b.created || 0) - (a.created || 0));
   render(works);
 }
 
