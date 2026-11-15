@@ -1,5 +1,3 @@
-import { startArt } from "./art.js";
-
 const modules = [
   {
     id: "artist",
@@ -98,7 +96,6 @@ const links = [
 
 const viewport = document.querySelector("#viewport");
 const gridLayer = document.querySelector("#grid");
-startArt(viewport);
 const world = document.querySelector("#world");
 
 const byId = Object.fromEntries(modules.map((module) => [module.id, module]));
@@ -299,9 +296,7 @@ function clampX(span) {
 
 function frameNetwork() {
   const span = networkSpan();
-  const stage = document.querySelector("#stage");
-  const stageWidth = stage ? stage.getBoundingClientRect().width : 0;
-  leftAnchor = Math.max(16, stageWidth * 0.42);
+  leftAnchor = 48;
   const rightSpace = Math.max(88, viewport.clientWidth * 0.1);
   const width = Math.max(280, viewport.clientWidth - leftAnchor - rightSpace);
   const height = viewport.clientHeight;
