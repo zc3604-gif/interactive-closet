@@ -138,25 +138,6 @@ body {
   font-size: 11px;
 }
 
-.wordmark {
-  position: absolute;
-  z-index: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin: 0;
-  pointer-events: none;
-  text-align: center;
-  font-family: Consolas, "Courier New", monospace;
-  font-weight: 700;
-  font-size: clamp(96px, 18vw, 280px);
-  line-height: 0.72;
-  letter-spacing: 0.01em;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  -webkit-text-stroke: 0.035em #fff;
-}
-
 #world {
   position: absolute;
   z-index: 1;
