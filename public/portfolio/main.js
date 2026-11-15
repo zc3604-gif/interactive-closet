@@ -291,15 +291,10 @@ function placeVertical(span) {
 
 function clampX(span) {
   const margin = scrollLimit();
-  const viewW = viewport.clientWidth;
-  const xMax = margin - span.minX * scale;
-  const xMin = viewW - margin - span.maxX * scale;
-  if (xMin <= xMax) {
-    x = Math.min(xMax, Math.max(xMin, x));
-    return;
-  }
-  const framed = leftAnchor - span.minX * scale;
-  x = Math.min(framed + margin, Math.max(framed - margin, x));
+  const viewCenter = viewport.clientWidth / 2;
+  const xMax = viewCenter + margin - span.minX * scale;
+  const xMin = viewCenter - margin - span.maxX * scale;
+  x = Math.min(xMax, Math.max(xMin, x));
 }
 
 function frameNetwork() {
