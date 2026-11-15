@@ -174,6 +174,32 @@ async function loadMedia(moduleId, preview) {
   if (record) showMedia(preview, record.blob, record.type);
 }
 
+function mountBoxSketch(preview) {
+  if (typeof p5 === "undefined") return;
+  const host = document.createElement("div");
+  host.className = "sketch";
+  preview.append(host);
+  new p5((p) => {
+    p.setup = () => {
+      p.setAttributes("alpha", true);
+      const canvas = p.createCanvas(host.clientWidth || 112, host.clientHeight || 52, p.WEBGL);
+      canvas.elt.style.background = "transparent";
+    };
+    p.draw = () => {
+      p.clear();
+      p.ambientLight(80);
+      p.directionalLight(255, 255, 255, 0.5, 0.5, -1);
+      p.rotateX(p.frameCount * 0.01);
+      p.rotateY(p.frameCount * 0.01);
+      p.rotateZ(p.frameCount * 0.008);
+      p.stroke(0);
+      p.strokeWeight(1);
+      p.fill(255, 190);
+      p.box(Math.min(p.width, p.height) * 0.7);
+    };
+  }, host);
+}
+
 function bindEditable(element, moduleId, field) {
   const saved = readTextStore()[moduleId];
   if (saved && typeof saved[field] === "string") element.textContent = saved[field];
@@ -208,6 +234,7 @@ for (const module of modules) {
     await saveMedia(module.id, file);
   });
   preview.append(upload);
+  if (module.id === "p5") mountBoxSketch(preview);
   node.append(preview);
   const kind = document.createElement("p");
   kind.className = "kind";
@@ -236,7 +263,7 @@ for (const module of modules) {
   module.el = node;
   node.addEventListener("pointerdown", (event) => startNodeDrag(module, event));
   world.append(node);
-  loadMedia(module.id, preview);
+  if (module.id !== "p5") loadMedia(module.id, preview);
 }
 
 let x = 0;
