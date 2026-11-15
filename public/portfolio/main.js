@@ -6,8 +6,8 @@ const modules = [
     w: 240,
     h: 292,
     kind: "Artist information",
-    title: "Zihan",
-    body: "Interactive media artist. VJ, video art, interface design, 3D, and digital production.",
+    title: "f(x)",
+    body: "Interactive Media Arts & Human-Computer Interaction NYC BasedVideo arts, live coding, 3D, post-production, Interfaces designSoftWares: Adobe AE PS\u00a0\u00a0Autodeswk Maya Fusion, Blender, Zbrush, Three.js TouchDesigner, HydraSynth, Resolumn, Module8, MadmapperContact information:email:zc3604@nyu.edunumber:+1(949)620-7911",
     preview: previewArtist,
   },
   {
@@ -28,13 +28,13 @@ const modules = [
     w: 240,
     h: 292,
     kind: "3D design",
-    title: "Form and character",
+    title: "Models",
     body: "Character and object design in Maya, Blender, ZBrush, and Fusion.",
     preview: previewForm,
   },
   { id: "p5", x: 312, y: 0, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
   { id: "vj", x: 312, y: 92, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
-  { id: "video", x: 312, y: 184, w: 112, h: 84, small: true, kind: "Video", preview: () => previewOp("film") },
+  { id: "video", x: 312, y: 184, w: 112, h: 84, small: true, kind: "Fine art", preview: () => previewOp("film") },
 ];
 
 const links = [
@@ -453,8 +453,6 @@ const workPages = {
 };
 
 function bindEditable(element, moduleId, field) {
-  const saved = readTextStore()[moduleId];
-  if (saved && typeof saved[field] === "string") element.textContent = saved[field];
   element.spellcheck = false;
   if (!workPages[moduleId]) element.addEventListener("pointerdown", (event) => event.stopPropagation());
   element.addEventListener("blur", () => writeTextStore(moduleId, field, element.textContent));
