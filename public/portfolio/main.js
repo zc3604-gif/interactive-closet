@@ -244,7 +244,7 @@ function mountGrapeSketch(preview) {
 
 function mountHowlerSketch(preview) {
   const host = document.createElement("div");
-  host.className = "sketch howler";
+  host.className = "sketch";
   preview.append(host);
   const canvas = document.createElement("canvas");
   const width = 240;
@@ -257,18 +257,6 @@ function mountHowlerSketch(preview) {
   const data = image.data;
   let clock = 0;
   let last = performance.now();
-  let mouseX = 0;
-  let mouseY = 0;
-  let aimX = 0;
-  let aimY = 0;
-  canvas.addEventListener("pointerdown", (event) => event.stopPropagation());
-  canvas.addEventListener("pointermove", (event) => {
-    const rect = canvas.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * width;
-    const y = ((event.clientY - rect.top) / rect.height) * height;
-    aimX = (x / width) * 2 - 1;
-    aimY = 1 - (y / height) * 2;
-  });
 
   function smoothstep(edge0, edge1, value) {
     const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
@@ -279,8 +267,6 @@ function mountHowlerSketch(preview) {
     const delta = Math.min(50, now - last);
     last = now;
     clock += delta * 0.001 * 0.35;
-    mouseX += (aimX - mouseX) * 0.04;
-    mouseY += (aimY - mouseY) * 0.04;
     const zoom = 1.8;
     const contrast = 1.4;
     const minSide = Math.min(width, height);
@@ -291,8 +277,8 @@ function mountHowlerSketch(preview) {
     const ay = 0.65;
     const bx = 0.25;
     const by = -0.65 + 0.1 * Math.cos(clock);
-    const cx = 0.25 + mouseX * 0.55;
-    const cy = 0.25 + mouseY * 0.55;
+    const cx = 0.25;
+    const cy = 0.25;
     const wave = 0.3 * Math.sin(clock * 0.5);
     for (let y = 0; y < height; y += 1) {
       const fragY = height - (y + 0.5);
