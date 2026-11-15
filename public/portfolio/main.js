@@ -291,11 +291,30 @@ function clampX(span) {
 function placePortrait() {
   const aspect = (backdrop && backdrop.naturalWidth ? backdrop.naturalWidth : 3072) /
     (backdrop && backdrop.naturalHeight ? backdrop.naturalHeight : 1848);
+  const faceRightRatio = 0.51;
   const viewW = viewport.clientWidth;
   const viewH = viewport.clientHeight;
-  const displayedW = viewW / viewH > aspect ? viewW : viewH * aspect;
-  const faceRight = displayedW * 0.51;
-  return Math.round(Math.min(Math.max(faceRight + 28, 48), viewW * 0.46));
+  const gap = 72;
+  const rightSpace = Math.max(88, viewW * 0.1);
+  const maxNodeLeft = Math.max(48, viewW - rightSpace - 280);
+  let imgW = Math.max(viewW, viewH * aspect);
+  let left = viewW - imgW;
+  let faceRight = left + imgW * faceRightRatio;
+  if (faceRight + gap > maxNodeLeft) {
+    const target = maxNodeLeft - gap;
+    imgW = Math.max(imgW, (viewW - target) / (1 - faceRightRatio));
+    left = viewW - imgW;
+    faceRight = left + imgW * faceRightRatio;
+  }
+  const imgH = imgW / aspect;
+  const top = imgH > viewH ? viewH - imgH : (viewH - imgH) / 2;
+  backdrop.style.width = `${imgW}px`;
+  backdrop.style.height = `${imgH}px`;
+  backdrop.style.left = `${left}px`;
+  backdrop.style.top = `${top}px`;
+  backdrop.style.right = "auto";
+  backdrop.style.bottom = "auto";
+  return Math.round(Math.min(Math.max(faceRight + gap, 48), maxNodeLeft));
 }
 
 function frameNetwork() {
