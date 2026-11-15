@@ -92,6 +92,7 @@ const links = [
 ];
 
 const viewport = document.querySelector("#viewport");
+const backdrop = document.querySelector("#backdrop");
 const world = document.querySelector("#world");
 
 const byId = Object.fromEntries(modules.map((module) => [module.id, module]));
@@ -287,9 +288,27 @@ function clampX(span) {
   x = Math.min(xMax, Math.max(xMin, x));
 }
 
+function placePortrait() {
+  if (!backdrop) return 48;
+  const aspect = (backdrop.naturalWidth || 1024) / (backdrop.naturalHeight || 616);
+  const viewW = viewport.clientWidth;
+  const viewH = viewport.clientHeight;
+  const faceRatio = 0.46;
+  let displayedW = viewH * aspect;
+  const maxFace = Math.min(viewW * 0.4, 620);
+  if (displayedW * faceRatio > maxFace) displayedW = maxFace / faceRatio;
+  const displayedH = displayedW / aspect;
+  const shift = displayedW * 0.14;
+  backdrop.style.width = `${displayedW}px`;
+  backdrop.style.height = `${displayedH}px`;
+  backdrop.style.transform = `translateX(${-shift}px)`;
+  backdrop.style.top = `${Math.max(0, (viewH - displayedH) / 2)}px`;
+  return Math.round(displayedW * faceRatio + 110);
+}
+
 function frameNetwork() {
   const span = networkSpan();
-  leftAnchor = 48;
+  leftAnchor = placePortrait();
   const rightSpace = Math.max(88, viewport.clientWidth * 0.1);
   const width = Math.max(280, viewport.clientWidth - leftAnchor - rightSpace);
   const height = viewport.clientHeight;
@@ -435,6 +454,12 @@ window.addEventListener("pointerup", endDrag);
 window.addEventListener("pointercancel", endDrag);
 
 window.addEventListener("resize", frameNetwork);
+if (backdrop && !backdrop.complete) {
+  backdrop.addEventListener("load", () => {
+    fitted = false;
+    frameNetwork();
+  });
+}
 frameNetwork();
 
 function previewArtist() {

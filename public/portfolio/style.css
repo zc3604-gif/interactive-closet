@@ -56,12 +56,12 @@ body {
 
 #backdrop {
   position: absolute;
-  inset: 0;
-  width: 100%;
+  top: 0;
+  left: 0;
   height: 100%;
-  object-fit: cover;
-  object-position: left center;
+  width: auto;
   pointer-events: none;
+  user-select: none;
 }
 
 #axes {
