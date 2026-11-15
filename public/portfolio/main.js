@@ -194,7 +194,6 @@ function applyView() {
 }
 
 let baseScale = 1;
-let leftAnchor = 0;
 let fitted = false;
 
 function networkSpan() {
@@ -222,53 +221,23 @@ function clampX(span) {
   x = Math.min(xMax, Math.max(xMin, x));
 }
 
-function placePortrait() {
-  const aspect = (backdrop && backdrop.naturalWidth ? backdrop.naturalWidth : 1024) /
-    (backdrop && backdrop.naturalHeight ? backdrop.naturalHeight : 615);
-  const faceRightRatio = 0.51;
-  const viewW = viewport.clientWidth;
-  const viewH = viewport.clientHeight;
-  const gap = 72;
-  const rightSpace = Math.max(88, viewW * 0.1);
-  const maxNodeLeft = Math.max(48, viewW - rightSpace - 280);
-  let imgW = Math.max(viewW, viewH * aspect);
-  let left = viewW - imgW;
-  let faceRight = left + imgW * faceRightRatio;
-  if (faceRight + gap > maxNodeLeft) {
-    const target = maxNodeLeft - gap;
-    imgW = Math.max(imgW, (viewW - target) / (1 - faceRightRatio));
-    left = viewW - imgW;
-    faceRight = left + imgW * faceRightRatio;
-  }
-  const imgH = imgW / aspect;
-  const top = imgH > viewH ? viewH - imgH : (viewH - imgH) / 2;
-  backdrop.style.width = `${imgW}px`;
-  backdrop.style.height = `${imgH}px`;
-  backdrop.style.left = `${left}px`;
-  backdrop.style.top = `${top}px`;
-  backdrop.style.right = "auto";
-  backdrop.style.bottom = "auto";
-  return Math.round(Math.min(Math.max(faceRight + gap, 48), maxNodeLeft));
-}
-
 function frameNetwork() {
   const span = networkSpan();
-  leftAnchor = placePortrait();
-  const rightSpace = Math.max(48, viewport.clientWidth * 0.04);
-  const width = Math.max(280, viewport.clientWidth - leftAnchor - rightSpace);
-  const height = viewport.clientHeight;
-  const padding = 16;
+  const padX = Math.max(24, viewport.clientWidth * 0.025);
+  const padTop = 54;
+  const padBottom = 18;
+  const width = Math.max(240, viewport.clientWidth - padX * 2);
+  const height = Math.max(180, viewport.clientHeight - padTop - padBottom);
   baseScale = Math.min(
     width / (span.maxX - span.minX),
-    (height - padding * 2) / (span.maxY - span.minY)
+    height / (span.maxY - span.minY)
   );
-  if (!fitted || scale < baseScale) {
-    scale = baseScale;
-    x = leftAnchor - span.minX * scale;
-    fitted = true;
-  }
-  placeVertical(span);
-  clampX(span);
+  scale = baseScale;
+  const spanW = (span.maxX - span.minX) * scale;
+  const spanH = (span.maxY - span.minY) * scale;
+  x = (viewport.clientWidth - spanW) / 2 - span.minX * scale;
+  y = padTop + (height - spanH) / 2 - span.minY * scale;
+  fitted = true;
   applyView();
 }
 
