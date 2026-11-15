@@ -113,24 +113,134 @@ for (const link of routed) {
   travelers.push({ path, circle, length: 0, offset: travelers.length / routed.length });
 }
 
+const textKey = "portfolio-module-text";
+
+function readTextStore() {
+  try {
+    return JSON.parse(localStorage.getItem(textKey)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function writeTextStore(moduleId, field, value) {
+  const store = readTextStore();
+  store[moduleId] = { ...(store[moduleId] || {}), [field]: value };
+  localStorage.setItem(textKey, JSON.stringify(store));
+}
+
+function openMediaDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("portfolio-media", 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore("files");
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function showMedia(preview, blob, type) {
+  preview.querySelector(".media")?.remove();
+  const media = document.createElement(type.startsWith("video/") ? "video" : "img");
+  media.className = "media";
+  media.src = URL.createObjectURL(blob);
+  if (media.tagName === "VIDEO") {
+    media.controls = true;
+    media.loop = true;
+    media.muted = true;
+    media.playsInline = true;
+  }
+  preview.append(media);
+}
+
+async function saveMedia(moduleId, file) {
+  const db = await openMediaDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction("files", "readwrite");
+    tx.objectStore("files").put({ blob: file, type: file.type }, moduleId);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+async function loadMedia(moduleId, preview) {
+  const db = await openMediaDb();
+  const record = await new Promise((resolve, reject) => {
+    const tx = db.transaction("files", "readonly");
+    const request = tx.objectStore("files").get(moduleId);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  if (record) showMedia(preview, record.blob, record.type);
+}
+
+function bindEditable(element, moduleId, field) {
+  const saved = readTextStore()[moduleId];
+  if (saved && typeof saved[field] === "string") element.textContent = saved[field];
+  element.spellcheck = false;
+  element.addEventListener("pointerdown", (event) => event.stopPropagation());
+  element.addEventListener("blur", () => writeTextStore(moduleId, field, element.textContent));
+  element.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && field !== "body") event.preventDefault();
+  });
+}
+
 for (const module of modules) {
   const node = document.createElement("article");
   node.className = module.small ? "node small" : "node";
   node.style.left = `${module.x}px`;
   node.style.top = `${module.y}px`;
-  const copy = module.small
-    ? `<p class="kind">${module.kind}</p>`
-    : `<div class="copy">
-        <p class="kind">${module.kind}</p>
-        <h2>${module.title}</h2>
-        <p class="body">${module.body}</p>
-      </div>`;
-  node.innerHTML = `<div class="preview">${module.preview()}</div>${copy}`;
+  const preview = document.createElement("div");
+  preview.className = "preview";
+  preview.innerHTML = module.preview();
+  const upload = document.createElement("label");
+  upload.className = "upload";
+  upload.textContent = "+";
+  upload.title = "Add an image or video";
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*,video/*";
+  upload.append(input);
+  upload.addEventListener("pointerdown", (event) => event.stopPropagation());
+  input.addEventListener("change", async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    showMedia(preview, file, file.type);
+    await saveMedia(module.id, file);
+  });
+  preview.append(upload);
+  node.append(preview);
+  const kind = document.createElement("p");
+  kind.className = "kind";
+  kind.contentEditable = "true";
+  kind.textContent = module.kind;
+  bindEditable(kind, module.id, "kind");
+  if (module.small) {
+    node.append(kind);
+  } else {
+    const copy = document.createElement("div");
+    copy.className = "copy";
+    const title = document.createElement("h2");
+    title.contentEditable = "true";
+    title.textContent = module.title;
+    const body = document.createElement("p");
+    body.className = "body";
+    body.contentEditable = "true";
+    body.textContent = module.body;
+    bindEditable(title, module.id, "title");
+    bindEditable(body, module.id, "body");
+    copy.append(kind, title, body);
+    node.append(copy);
+  }
   addPorts(node, module, "in", inSlot[module.id] || 0);
   addPorts(node, module, "out", outSlot[module.id] || 0);
   module.el = node;
   node.addEventListener("pointerdown", (event) => startNodeDrag(module, event));
   world.append(node);
+  loadMedia(module.id, preview);
 }
 
 let x = 0;
@@ -283,6 +393,7 @@ let pinchX = 0;
 
 function startNodeDrag(module, event) {
   if (event.button !== 0 || touches.size > 1) return;
+  if (event.target.closest("[contenteditable], .upload, .media")) return;
   event.stopPropagation();
   event.preventDefault();
   dragged = module;
