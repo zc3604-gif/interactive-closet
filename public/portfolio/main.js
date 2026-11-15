@@ -1,3 +1,5 @@
+import { startArt } from "./art.js";
+
 const modules = [
   {
     id: "artist",
@@ -96,6 +98,7 @@ const links = [
 
 const viewport = document.querySelector("#viewport");
 const gridLayer = document.querySelector("#grid");
+startArt(viewport);
 const world = document.querySelector("#world");
 
 const byId = Object.fromEntries(modules.map((module) => [module.id, module]));
