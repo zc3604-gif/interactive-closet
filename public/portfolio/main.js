@@ -232,6 +232,72 @@ function mountGrapeSketch(preview) {
   }, host);
 }
 
+function mountBasinSketch(preview) {
+  if (typeof p5 === "undefined") return;
+  const host = document.createElement("div");
+  host.className = "sketch";
+  preview.append(host);
+  const vert = `
+    attribute vec3 aPosition;
+    void main() {
+      vec4 p = vec4(aPosition, 1.0);
+      p.xy = p.xy * 2.0 - 1.0;
+      gl_Position = p;
+    }
+  `;
+  const frag = `
+    precision highp float;
+    uniform vec2 uRes;
+    uniform float uPD, uTime, uScale, uGap;
+    vec2 hash2(vec2 p) {
+      p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+      return fract(sin(p) * 43758.5453);
+    }
+    void main() {
+      vec2 frag = vec2(gl_FragCoord.x, uRes.y * uPD - gl_FragCoord.y) / uPD;
+      vec2 p = frag / uScale;
+      vec2 ip = floor(p);
+      float d1 = 8.0;
+      float d2 = 8.0;
+      for (int j = -2; j <= 2; j++) {
+        for (int i = -2; i <= 2; i++) {
+          vec2 g = ip + vec2(float(i), float(j));
+          vec2 h = hash2(g);
+          vec2 pt = g + 0.5 + 0.42 * sin(uTime * (0.25 + 0.6 * h.yx) + 6.2831 * h);
+          float d = length(p - pt);
+          if (d < d1) { d2 = d1; d1 = d; }
+          else if (d < d2) { d2 = d; }
+        }
+      }
+      float e = d2 - d1;
+      float aa = 1.5 / uScale;
+      float wall = 1.0 - smoothstep(uGap, uGap + aa, e);
+      gl_FragColor = vec4(vec3(0.0), wall);
+    }
+  `;
+  new p5((p) => {
+    let shader;
+    p.setup = () => {
+      p.setAttributes("alpha", true);
+      const canvas = p.createCanvas(host.clientWidth || 112, host.clientHeight || 52, p.WEBGL);
+      canvas.elt.style.background = "transparent";
+      p.pixelDensity(1);
+      shader = p.createShader(vert, frag);
+    };
+    p.draw = () => {
+      p.clear();
+      p.shader(shader);
+      shader.setUniform("uRes", [p.width, p.height]);
+      shader.setUniform("uPD", p.pixelDensity());
+      shader.setUniform("uTime", p.millis() / 1000);
+      shader.setUniform("uScale", Math.max(22, p.width / 3.2));
+      shader.setUniform("uGap", 0.13);
+      p.noStroke();
+      p.rect(0, 0, p.width, p.height);
+    };
+  }, host);
+}
+
 function mountRibbonSketch(preview) {
   if (typeof p5 === "undefined") return;
   const host = document.createElement("div");
@@ -413,6 +479,7 @@ for (const module of modules) {
   preview.append(upload);
   if (module.id === "p5") mountBoxSketch(preview);
   if (module.id === "vj") mountGrapeSketch(preview);
+  if (module.id === "video") mountBasinSketch(preview);
   if (module.id === "works") mountHowlerSketch(preview);
   if (module.id === "3d") mountRibbonSketch(preview);
   node.append(preview);
@@ -441,7 +508,7 @@ for (const module of modules) {
   module.el = node;
   node.addEventListener("pointerdown", (event) => startNodeDrag(module, event));
   world.append(node);
-  if (module.id !== "p5" && module.id !== "vj" && module.id !== "works" && module.id !== "3d") loadMedia(module.id, preview);
+  if (module.id !== "p5" && module.id !== "vj" && module.id !== "video" && module.id !== "works" && module.id !== "3d") loadMedia(module.id, preview);
 }
 
 let x = 0;
