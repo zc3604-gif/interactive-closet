@@ -213,7 +213,7 @@ for (const module of modules) {
     await saveMedia(module.id, file);
   });
   preview.append(upload);
-  if (module.id === "p5") mountBoxSketch(preview);
+  if (module.id === "p5" || module.id === "vj") mountBoxSketch(preview);
   node.append(preview);
   const kind = document.createElement("p");
   kind.className = "kind";
@@ -240,7 +240,7 @@ for (const module of modules) {
   module.el = node;
   node.addEventListener("pointerdown", (event) => startNodeDrag(module, event));
   world.append(node);
-  if (module.id !== "p5") loadMedia(module.id, preview);
+  if (module.id !== "p5" && module.id !== "vj") loadMedia(module.id, preview);
 }
 
 let x = 0;
