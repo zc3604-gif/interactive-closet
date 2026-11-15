@@ -177,6 +177,71 @@ function mountBoxSketch(preview) {
   }, host);
 }
 
+function mountGrapeSketch(preview) {
+  if (typeof p5 === "undefined") return;
+  const host = document.createElement("div");
+  host.className = "sketch";
+  preview.append(host);
+  new p5((p) => {
+    let circleX = 0;
+    let circleY = 0;
+    let circleRadius = 20;
+
+    function smoothFade(start, end, value) {
+      const t = p.constrain((value - start) / (end - start), 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+
+    p.setup = () => {
+      const canvas = p.createCanvas(host.clientWidth || 112, host.clientHeight || 52);
+      canvas.elt.style.background = "transparent";
+      p.pixelDensity(2);
+      circleX = p.width / 2;
+      circleY = p.height / 2;
+    };
+
+    p.draw = () => {
+      p.clear();
+      const base = Math.min(p.width, p.height) * 0.46;
+      const phase = ((p.millis() / 1000) * p.TWO_PI) / 4;
+      circleRadius = base + p.sin(phase) * base * (35 / 145);
+      circleX = p.width / 2;
+      circleY = p.height / 2;
+
+      const context = p.drawingContext;
+      const gradient = context.createRadialGradient(circleX, circleY, 0, circleX, circleY, circleRadius);
+      gradient.addColorStop(0.0, "rgba(12,12,12,0.95)");
+      gradient.addColorStop(0.12, "rgba(40,40,40,0.85)");
+      gradient.addColorStop(0.35, "rgba(90,90,90,0.65)");
+      gradient.addColorStop(0.62, "rgba(150,150,150,0.43)");
+      gradient.addColorStop(0.84, "rgba(195,195,195,0.25)");
+      gradient.addColorStop(1.0, "rgba(230,230,230,0)");
+      context.save();
+      context.fillStyle = gradient;
+      context.beginPath();
+      context.arc(circleX, circleY, circleRadius, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+
+      p.noFill();
+      p.strokeWeight(Math.max(0.35, (0.9 * circleRadius) / 145));
+      const ringCount = 30;
+      for (let index = 1; index < ringCount; index += 1) {
+        const fraction = index / ringCount;
+        const radius = circleRadius * fraction;
+        const opacity = p.lerp(22, 115, fraction);
+        const edgeFade = 1 - smoothFade(0.7, 1, fraction);
+        p.stroke(255, opacity * edgeFade);
+        p.circle(circleX, circleY, radius * 2);
+      }
+
+      p.noStroke();
+      p.fill(15, 150);
+      p.circle(circleX, circleY, (4 * circleRadius) / 145);
+    };
+  }, host);
+}
+
 function bindEditable(element, moduleId, field) {
   const saved = readTextStore()[moduleId];
   if (saved && typeof saved[field] === "string") element.textContent = saved[field];
@@ -213,7 +278,8 @@ for (const module of modules) {
     await saveMedia(module.id, file);
   });
   preview.append(upload);
-  if (module.id === "p5" || module.id === "vj") mountBoxSketch(preview);
+  if (module.id === "p5") mountBoxSketch(preview);
+  if (module.id === "vj") mountGrapeSketch(preview);
   node.append(preview);
   const kind = document.createElement("p");
   kind.className = "kind";
