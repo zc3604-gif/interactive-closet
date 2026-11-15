@@ -242,6 +242,103 @@ function mountGrapeSketch(preview) {
   }, host);
 }
 
+function mountHowlerSketch(preview) {
+  const host = document.createElement("div");
+  host.className = "sketch howler";
+  preview.append(host);
+  const canvas = document.createElement("canvas");
+  const width = 240;
+  const height = 132;
+  canvas.width = width;
+  canvas.height = height;
+  host.append(canvas);
+  const context = canvas.getContext("2d");
+  const image = context.createImageData(width, height);
+  const data = image.data;
+  let clock = 0;
+  let last = performance.now();
+  let mouseX = 0;
+  let mouseY = 0;
+  let aimX = 0;
+  let aimY = 0;
+  canvas.addEventListener("pointerdown", (event) => event.stopPropagation());
+  canvas.addEventListener("pointermove", (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * width;
+    const y = ((event.clientY - rect.top) / rect.height) * height;
+    aimX = (x / width) * 2 - 1;
+    aimY = 1 - (y / height) * 2;
+  });
+
+  function smoothstep(edge0, edge1, value) {
+    const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
+    return t * t * (3 - 2 * t);
+  }
+
+  function frame(now) {
+    const delta = Math.min(50, now - last);
+    last = now;
+    clock += delta * 0.001 * 0.35;
+    mouseX += (aimX - mouseX) * 0.04;
+    mouseY += (aimY - mouseY) * 0.04;
+    const zoom = 1.8;
+    const contrast = 1.4;
+    const minSide = Math.min(width, height);
+    const angle = 0.35;
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    const ax = -0.45 + 0.12 * Math.sin(clock);
+    const ay = 0.65;
+    const bx = 0.25;
+    const by = -0.65 + 0.1 * Math.cos(clock);
+    const cx = 0.25 + mouseX * 0.55;
+    const cy = 0.25 + mouseY * 0.55;
+    const wave = 0.3 * Math.sin(clock * 0.5);
+    for (let y = 0; y < height; y += 1) {
+      const fragY = height - (y + 0.5);
+      for (let x = 0; x < width; x += 1) {
+        const fragX = x + 0.5;
+        let zx = ((2 * fragX - width) / minSide) * zoom;
+        let zy = ((2 * fragY - height) / minSide) * zoom;
+        const rx = cosA * zx - sinA * zy;
+        const ry = sinA * zx + cosA * zy;
+        const zax = rx - ax;
+        const zay = ry - ay;
+        const zbx = rx - bx;
+        const zby = ry - by;
+        const nx = zax * zbx - zay * zby;
+        const ny = zax * zby + zay * zbx;
+        const zcx = rx - cx;
+        const zcy = ry - cy;
+        const denom = Math.max(zcx * zcx + zcy * zcy, 0.00001);
+        const wx = (nx * zcx + ny * zcy) / denom;
+        const wy = (ny * zcx - nx * zcy) / denom;
+        const phase = Math.atan2(wy, wx);
+        const magnitude = Math.hypot(wx, wy);
+        const bend = 0.45 * Math.sin(1.5 * Math.log(1 + magnitude));
+        let light = 0.5 + 0.5 * Math.cos(phase + bend + wave);
+        light = Math.min(1, Math.max(0, (light - 0.5) * contrast + 0.5));
+        const silver = smoothstep(0, 0.75, light);
+        const highlight = smoothstep(0.65, 1, light);
+        let red = 0.025 + (0.56 - 0.025) * silver;
+        let green = 0.02 + (0.63 - 0.02) * silver;
+        let blue = 0.055 + (0.7 - 0.055) * silver;
+        red += (0.88 - red) * highlight;
+        green += (1 - green) * highlight;
+        blue += (1 - blue) * highlight;
+        const index = (y * width + x) * 4;
+        data[index] = red * 255;
+        data[index + 1] = green * 255;
+        data[index + 2] = blue * 255;
+        data[index + 3] = 255;
+      }
+    }
+    context.putImageData(image, 0, 0);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
 function bindEditable(element, moduleId, field) {
   const saved = readTextStore()[moduleId];
   if (saved && typeof saved[field] === "string") element.textContent = saved[field];
@@ -280,6 +377,7 @@ for (const module of modules) {
   preview.append(upload);
   if (module.id === "p5") mountBoxSketch(preview);
   if (module.id === "vj") mountGrapeSketch(preview);
+  if (module.id === "works") mountHowlerSketch(preview);
   node.append(preview);
   const kind = document.createElement("p");
   kind.className = "kind";
@@ -306,7 +404,7 @@ for (const module of modules) {
   module.el = node;
   node.addEventListener("pointerdown", (event) => startNodeDrag(module, event));
   world.append(node);
-  if (module.id !== "p5" && module.id !== "vj") loadMedia(module.id, preview);
+  if (module.id !== "p5" && module.id !== "vj" && module.id !== "works") loadMedia(module.id, preview);
 }
 
 let x = 0;

@@ -207,6 +207,12 @@ body {
   pointer-events: none;
 }
 
+.preview .sketch.howler,
+.preview .sketch.howler canvas {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
 .upload {
   position: absolute;
   right: 4px;
