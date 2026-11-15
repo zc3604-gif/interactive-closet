@@ -55,7 +55,7 @@ body {
   background-image:
     linear-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-size: 12px 12px;
 }
 
 #world {
@@ -78,12 +78,6 @@ body {
   fill: none;
   stroke: #111;
   stroke-width: 1.35;
-}
-
-.traveler {
-  fill: #111;
-  stroke: #111;
-  stroke-width: 1.6;
 }
 
 .node {

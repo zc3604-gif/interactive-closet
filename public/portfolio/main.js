@@ -97,17 +97,13 @@ svg.setAttribute("width", "1960");
 svg.setAttribute("height", "980");
 world.append(svg);
 
-const travelers = [];
+const wires = [];
 for (const link of routed) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
   path.setAttribute("class", "wire");
   path.setAttribute("d", wirePath(link));
   svg.append(path);
-  const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-  circle.setAttribute("class", "traveler");
-  circle.setAttribute("r", "5");
-  svg.append(circle);
-  travelers.push({ path, circle, length: 0, offset: travelers.length / routed.length });
+  wires.push(path);
 }
 
 const textKey = "portfolio-module-text";
@@ -299,8 +295,7 @@ function wirePath(link) {
 
 function redrawWires() {
   for (let index = 0; index < routed.length; index += 1) {
-    travelers[index].path.setAttribute("d", wirePath(routed[index]));
-    travelers[index].length = 0;
+    wires[index].setAttribute("d", wirePath(routed[index]));
   }
 }
 
@@ -308,19 +303,6 @@ function placeNode(module) {
   module.el.style.left = `${module.x}px`;
   module.el.style.top = `${module.y}px`;
 }
-
-function stepTravelers(now) {
-  for (const traveler of travelers) {
-    if (!traveler.length) traveler.length = traveler.path.getTotalLength();
-    const distance = ((now / 1000) * 90 + traveler.offset * traveler.length) % traveler.length;
-    const point = traveler.path.getPointAtLength(distance);
-    traveler.circle.setAttribute("cx", point.x);
-    traveler.circle.setAttribute("cy", point.y);
-  }
-  requestAnimationFrame(stepTravelers);
-}
-
-requestAnimationFrame(stepTravelers);
 
 function applyView() {
   world.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
