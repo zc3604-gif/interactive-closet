@@ -379,40 +379,40 @@ frameNetwork();
 function previewArtist() {
   return `<svg viewBox="0 0 240 132" aria-hidden="true">
     <rect width="240" height="132" fill="none"/>
-    <circle cx="120" cy="58" r="22" fill="none" stroke="#ffffff" stroke-width="1.4"/>
-    <path d="M78 112c8-22 22-32 42-32s34 10 42 32" fill="none" stroke="#ffffff" stroke-width="1.4"/>
+    <circle cx="120" cy="58" r="22" fill="none" stroke="#111111" stroke-width="1.4"/>
+    <path d="M78 112c8-22 22-32 42-32s34 10 42 32" fill="none" stroke="#111111" stroke-width="1.4"/>
   </svg>`;
 }
 
 function previewWorks() {
   return `<svg viewBox="0 0 240 132" aria-hidden="true">
     <rect width="240" height="132" fill="none"/>
-    <rect x="28" y="36" width="184" height="60" fill="none" stroke="#ffffff" stroke-width="1.2"/>
-    <path d="M28 96 L70 62 L104 84 L150 46 L212 78" fill="none" stroke="#ffffff" stroke-width="1.3"/>
+    <rect x="28" y="36" width="184" height="60" fill="none" stroke="#111111" stroke-width="1.2"/>
+    <path d="M28 96 L70 62 L104 84 L150 46 L212 78" fill="none" stroke="#111111" stroke-width="1.3"/>
   </svg>`;
 }
 
 function previewForm() {
   return `<svg viewBox="0 0 240 132" aria-hidden="true">
     <rect width="240" height="132" fill="none"/>
-    <path d="M120 28 L168 52 L168 96 L120 118 L72 96 L72 52 Z" fill="none" stroke="#ffffff" stroke-width="1.3"/>
-    <path d="M120 28 L120 74 L168 96 M120 74 L72 96" fill="none" stroke="#ffffff" stroke-width="1.2"/>
+    <path d="M120 28 L168 52 L168 96 L120 118 L72 96 L72 52 Z" fill="none" stroke="#111111" stroke-width="1.3"/>
+    <path d="M120 28 L120 74 L168 96 M120 74 L72 96" fill="none" stroke="#111111" stroke-width="1.2"/>
   </svg>`;
 }
 
 function previewOp(kind) {
   const marks = {
-    wave: `<path d="M16 26 C28 8, 40 44, 56 26 S84 8, 96 26" fill="none" stroke="#ffffff" stroke-width="1.3"/>`,
-    film: `<rect x="24" y="14" width="64" height="24" fill="none" stroke="#ffffff"/><path d="M24 20 H88 M24 32 H88" stroke="#ffffff"/>`,
-    figure: `<circle cx="56" cy="16" r="6" fill="none" stroke="#ffffff"/><path d="M40 40c4-10 10-14 16-14s12 4 16 14" fill="none" stroke="#ffffff"/>`,
-    cube: `<path d="M56 12 L80 24 V40 L56 50 L32 40 V24 Z M56 12 V32 M56 32 L80 24 M56 32 L32 24" fill="none" stroke="#ffffff"/>`,
-    synth: `<circle cx="40" cy="26" r="8" fill="none" stroke="#ffffff"/><circle cx="72" cy="26" r="8" fill="none" stroke="#ffffff"/><path d="M48 26 H64" stroke="#ffffff"/>`,
-    patch: `<rect x="22" y="16" width="16" height="12" fill="none" stroke="#ffffff"/><rect x="48" y="12" width="16" height="12" fill="none" stroke="#ffffff"/><rect x="74" y="24" width="16" height="12" fill="none" stroke="#ffffff"/><path d="M38 22 H48 M64 18 H74 V30" fill="none" stroke="#ffffff"/>`,
-    p5: `<circle cx="40" cy="26" r="10" fill="none" stroke="#ffffff"/><rect x="62" y="16" width="20" height="20" fill="none" stroke="#ffffff"/>`,
-    clips: `<rect x="24" y="12" width="18" height="12" fill="none" stroke="#ffffff"/><rect x="47" y="12" width="18" height="12" fill="none" stroke="#ffffff"/><rect x="70" y="12" width="18" height="12" fill="none" stroke="#ffffff"/><rect x="24" y="30" width="18" height="12" fill="none" stroke="#ffffff"/><rect x="47" y="30" width="18" height="12" fill="none" stroke="#ffffff"/><rect x="70" y="30" width="18" height="12" fill="none" stroke="#ffffff"/>`,
-    sculpt: `<path d="M30 34 C40 14, 52 12, 62 24 S84 40, 86 22" fill="none" stroke="#ffffff"/>`,
-    code: `<path d="M46 14 L30 26 L46 38 M66 14 L82 26 L66 38" fill="none" stroke="#ffffff"/>`,
-    sliders: `<path d="M34 14 V40 M56 14 V40 M78 14 V40 M34 22 H42 M56 30 H64 M78 18 H86" fill="none" stroke="#ffffff"/>`,
+    wave: `<path d="M16 26 C28 8, 40 44, 56 26 S84 8, 96 26" fill="none" stroke="#111111" stroke-width="1.3"/>`,
+    film: `<rect x="24" y="14" width="64" height="24" fill="none" stroke="#111111"/><path d="M24 20 H88 M24 32 H88" stroke="#111111"/>`,
+    figure: `<circle cx="56" cy="16" r="6" fill="none" stroke="#111111"/><path d="M40 40c4-10 10-14 16-14s12 4 16 14" fill="none" stroke="#111111"/>`,
+    cube: `<path d="M56 12 L80 24 V40 L56 50 L32 40 V24 Z M56 12 V32 M56 32 L80 24 M56 32 L32 24" fill="none" stroke="#111111"/>`,
+    synth: `<circle cx="40" cy="26" r="8" fill="none" stroke="#111111"/><circle cx="72" cy="26" r="8" fill="none" stroke="#111111"/><path d="M48 26 H64" stroke="#111111"/>`,
+    patch: `<rect x="22" y="16" width="16" height="12" fill="none" stroke="#111111"/><rect x="48" y="12" width="16" height="12" fill="none" stroke="#111111"/><rect x="74" y="24" width="16" height="12" fill="none" stroke="#111111"/><path d="M38 22 H48 M64 18 H74 V30" fill="none" stroke="#111111"/>`,
+    p5: `<circle cx="40" cy="26" r="10" fill="none" stroke="#111111"/><rect x="62" y="16" width="20" height="20" fill="none" stroke="#111111"/>`,
+    clips: `<rect x="24" y="12" width="18" height="12" fill="none" stroke="#111111"/><rect x="47" y="12" width="18" height="12" fill="none" stroke="#111111"/><rect x="70" y="12" width="18" height="12" fill="none" stroke="#111111"/><rect x="24" y="30" width="18" height="12" fill="none" stroke="#111111"/><rect x="47" y="30" width="18" height="12" fill="none" stroke="#111111"/><rect x="70" y="30" width="18" height="12" fill="none" stroke="#111111"/>`,
+    sculpt: `<path d="M30 34 C40 14, 52 12, 62 24 S84 40, 86 22" fill="none" stroke="#111111"/>`,
+    code: `<path d="M46 14 L30 26 L46 38 M66 14 L82 26 L66 38" fill="none" stroke="#111111"/>`,
+    sliders: `<path d="M34 14 V40 M56 14 V40 M78 14 V40 M34 22 H42 M56 30 H64 M78 18 H86" fill="none" stroke="#111111"/>`,
   };
   return `<svg viewBox="0 0 112 52" aria-hidden="true"><rect width="112" height="52" fill="none"/>${marks[kind]}</svg>`;
 }
@@ -420,10 +420,10 @@ function previewOp(kind) {
 function previewSystems() {
   return `<svg viewBox="0 0 240 132" aria-hidden="true">
     <rect width="240" height="132" fill="none"/>
-    <rect x="36" y="46" width="36" height="28" fill="none" stroke="#ffffff"/>
-    <rect x="102" y="28" width="36" height="28" fill="none" stroke="#ffffff"/>
-    <rect x="102" y="76" width="36" height="28" fill="none" stroke="#ffffff"/>
-    <rect x="168" y="52" width="36" height="28" fill="none" stroke="#ffffff"/>
-    <path d="M72 60 H102 M138 42 H168 M138 90 H156 V66 H168" fill="none" stroke="#ffffff" stroke-width="1.2"/>
+    <rect x="36" y="46" width="36" height="28" fill="none" stroke="#111111"/>
+    <rect x="102" y="28" width="36" height="28" fill="none" stroke="#111111"/>
+    <rect x="102" y="76" width="36" height="28" fill="none" stroke="#111111"/>
+    <rect x="168" y="52" width="36" height="28" fill="none" stroke="#111111"/>
+    <path d="M72 60 H102 M138 42 H168 M138 90 H156 V66 H168" fill="none" stroke="#111111" stroke-width="1.2"/>
   </svg>`;
 }
