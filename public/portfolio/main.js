@@ -268,21 +268,72 @@ function applyView() {
   drawAxisMarks(originX, originY);
 }
 
+let baseScale = 1;
+let leftAnchor = 0;
+let fitted = false;
+
+function networkSpan() {
+  return {
+    minX: Math.min(...modules.map((module) => module.x)),
+    minY: Math.min(...modules.map((module) => module.y)),
+    maxX: Math.max(...modules.map((module) => module.x + module.w)),
+    maxY: Math.max(...modules.map((module) => module.y + module.h)),
+  };
+}
+
+function scrollLimit() {
+  return Math.max(72, viewport.clientWidth * 0.08);
+}
+
+function placeVertical(span) {
+  y = viewport.clientHeight / 2 - ((span.minY + span.maxY) / 2) * scale;
+}
+
+function clampX(span) {
+  const margin = scrollLimit();
+  const viewW = viewport.clientWidth;
+  const xMax = margin - span.minX * scale;
+  const xMin = viewW - margin - span.maxX * scale;
+  if (xMin <= xMax) {
+    x = Math.min(xMax, Math.max(xMin, x));
+    return;
+  }
+  const framed = leftAnchor - span.minX * scale;
+  x = Math.min(framed + margin, Math.max(framed - margin, x));
+}
+
 function frameNetwork() {
-  const minX = Math.min(...modules.map((module) => module.x));
-  const minY = Math.min(...modules.map((module) => module.y));
-  const maxX = Math.max(...modules.map((module) => module.x + module.w));
-  const maxY = Math.max(...modules.map((module) => module.y + module.h));
+  const span = networkSpan();
   const stage = document.querySelector("#stage");
   const stageWidth = stage ? stage.getBoundingClientRect().width : 0;
-  const left = Math.max(16, stageWidth * 0.42);
+  leftAnchor = Math.max(16, stageWidth * 0.42);
   const rightSpace = Math.max(88, viewport.clientWidth * 0.1);
-  const width = Math.max(280, viewport.clientWidth - left - rightSpace);
+  const width = Math.max(280, viewport.clientWidth - leftAnchor - rightSpace);
   const height = viewport.clientHeight;
   const padding = 28;
-  scale = Math.min(width / (maxX - minX), (height - padding * 2) / (maxY - minY));
-  x = left - minX * scale;
-  y = (height - (maxY - minY) * scale) / 2 - minY * scale;
+  baseScale = Math.min(
+    width / (span.maxX - span.minX),
+    (height - padding * 2) / (span.maxY - span.minY)
+  );
+  if (!fitted || scale < baseScale) {
+    scale = baseScale;
+    x = leftAnchor - span.minX * scale;
+    fitted = true;
+  }
+  placeVertical(span);
+  clampX(span);
+  applyView();
+}
+
+function zoomAt(clientX, nextScale) {
+  const span = networkSpan();
+  const rect = viewport.getBoundingClientRect();
+  const px = clientX - rect.left;
+  const worldX = (px - x) / scale;
+  scale = Math.min(10000, Math.max(baseScale, nextScale));
+  x = px - worldX * scale;
+  placeVertical(span);
+  clampX(span);
   applyView();
 }
 
@@ -290,6 +341,18 @@ viewport.addEventListener(
   "wheel",
   (event) => {
     event.preventDefault();
+    const sideways = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
+    if (sideways) {
+      x -= event.deltaX || event.deltaY;
+      const span = networkSpan();
+      placeVertical(span);
+      clampX(span);
+      applyView();
+      return;
+    }
+    const delta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
+    if (delta > 0 && scale <= baseScale) return;
+    zoomAt(event.clientX, scale * Math.exp(-delta * 0.0014));
   },
   { passive: false }
 );
@@ -298,9 +361,12 @@ let dragged = null;
 let lastX = 0;
 let lastY = 0;
 let front = 1;
+const touches = new Map();
+let pinchDistance = 0;
+let pinchX = 0;
 
 function startNodeDrag(module, event) {
-  if (event.button !== 0) return;
+  if (event.button !== 0 || touches.size > 1) return;
   event.stopPropagation();
   event.preventDefault();
   dragged = module;
@@ -316,20 +382,71 @@ function startNodeDrag(module, event) {
   }
 }
 
-window.addEventListener("pointermove", (event) => {
-  if (!dragged) return;
-  dragged.x += (event.clientX - lastX) / scale;
-  dragged.y += (event.clientY - lastY) / scale;
-  lastX = event.clientX;
-  lastY = event.clientY;
-  placeNode(dragged);
-  redrawWires();
-});
+window.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (event.pointerType !== "touch") return;
+    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (touches.size === 2) {
+      const [a, b] = [...touches.values()];
+      pinchDistance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      pinchX = (a.x + b.x) / 2;
+      if (dragged) dragged.el.classList.remove("lifting");
+      dragged = null;
+    }
+  },
+  true
+);
 
-function endDrag() {
+window.addEventListener(
+  "pointermove",
+  (event) => {
+    if (touches.has(event.pointerId)) {
+      touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+    if (touches.size >= 2) {
+      event.preventDefault();
+      const [a, b] = [...touches.values()];
+      const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      const midX = (a.x + b.x) / 2;
+      const span = networkSpan();
+      const rect = viewport.getBoundingClientRect();
+      const px = pinchX - rect.left;
+      const worldX = (px - x) / scale;
+      scale = Math.min(10000, Math.max(baseScale, scale * (distance / pinchDistance)));
+      x = px - worldX * scale + (midX - pinchX);
+      pinchDistance = distance;
+      pinchX = midX;
+      placeVertical(span);
+      clampX(span);
+      applyView();
+      return;
+    }
+    if (!dragged) return;
+    dragged.x += (event.clientX - lastX) / scale;
+    dragged.y += (event.clientY - lastY) / scale;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    placeNode(dragged);
+    redrawWires();
+  },
+  { passive: false }
+);
+
+function endDrag(event) {
+  if (event && touches.has(event.pointerId)) touches.delete(event.pointerId);
+  if (touches.size > 0) return;
   if (dragged) dragged.el.classList.remove("lifting");
   dragged = null;
 }
+
+viewport.addEventListener(
+  "touchmove",
+  (event) => {
+    if (event.touches.length > 1) event.preventDefault();
+  },
+  { passive: false }
+);
 
 window.addEventListener("pointerup", endDrag);
 window.addEventListener("pointercancel", endDrag);
