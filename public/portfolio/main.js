@@ -41,6 +41,7 @@ const links = [
   ["artist", "p5"],
   ["artist", "vj"],
   ["artist", "video"],
+  ["artist", "3d"],
   ["p5", "works"],
   ["vj", "works"],
   ["video", "works"],
@@ -231,6 +232,56 @@ function mountGrapeSketch(preview) {
   }, host);
 }
 
+function mountRibbonSketch(preview) {
+  if (typeof p5 === "undefined") return;
+  const host = document.createElement("div");
+  host.className = "sketch";
+  preview.append(host);
+  new p5((p) => {
+    const count = 260;
+    const across = 46;
+    p.setup = () => {
+      const canvas = p.createCanvas(host.clientWidth || 240, host.clientHeight || 132);
+      canvas.elt.style.background = "transparent";
+      p.pixelDensity(1);
+    };
+    p.draw = () => {
+      p.clear();
+      const time = p.millis() / 1000;
+      const span = Math.min(p.width, p.height);
+      const rotation = time * 0.12;
+      const cosine = p.cos(rotation);
+      const sine = p.sin(rotation);
+      for (let i = 0; i < count; i += 1) {
+        const u = i / (count - 1);
+        const centerX = (u - 0.5) * p.width * 0.95;
+        const centerY = p.sin(u * p.TWO_PI + time * 0.4) * span * 0.14
+          + p.sin(u * 5 * p.PI - time * 0.6) * span * 0.025;
+        const centerZ = p.cos(u * 3 * p.PI + time * 0.3) * span * 0.12;
+        const pinch = 0.25 + 0.75 * Math.abs(p.sin(u * 2.2 * p.PI + 1 + time * 0.2));
+        const ribbon = pinch * span * 0.34;
+        const twist = u * 3 * p.PI + p.sin(time * 0.5 + u * 4) * 0.6;
+        const twistCos = p.cos(twist);
+        const twistSin = p.sin(twist);
+        for (let j = 0; j < across; j += 1) {
+          const v = (j / (across - 1) - 0.5) * 2;
+          const offsetY = twistCos * v * ribbon;
+          const offsetZ = twistSin * v * ribbon + p.sin(v * 3 + u * 20 + time) * ribbon * 0.08;
+          const y = centerY + offsetY;
+          const z = centerZ + offsetZ;
+          const rotatedY = y * cosine - z * sine;
+          const rotatedZ = y * sine + z * cosine;
+          const scale = 900 / (900 + rotatedZ);
+          const alpha = p.map(rotatedZ, -span * 0.35, span * 0.35, 240, 60, true);
+          p.stroke(8, 14, 24, alpha);
+          p.strokeWeight(1.7 * scale);
+          p.point(p.width / 2 + centerX * scale, p.height / 2 + rotatedY * scale);
+        }
+      }
+    };
+  }, host);
+}
+
 function mountHowlerSketch(preview) {
   const host = document.createElement("div");
   host.className = "sketch";
@@ -360,6 +411,7 @@ for (const module of modules) {
   if (module.id === "p5") mountBoxSketch(preview);
   if (module.id === "vj") mountGrapeSketch(preview);
   if (module.id === "works") mountHowlerSketch(preview);
+  if (module.id === "3d") mountRibbonSketch(preview);
   node.append(preview);
   const kind = document.createElement("p");
   kind.className = "kind";
@@ -386,7 +438,7 @@ for (const module of modules) {
   module.el = node;
   node.addEventListener("pointerdown", (event) => startNodeDrag(module, event));
   world.append(node);
-  if (module.id !== "p5" && module.id !== "vj" && module.id !== "works") loadMedia(module.id, preview);
+  if (module.id !== "p5" && module.id !== "vj" && module.id !== "works" && module.id !== "3d") loadMedia(module.id, preview);
 }
 
 let x = 0;
