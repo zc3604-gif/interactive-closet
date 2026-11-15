@@ -35,26 +35,15 @@ const modules = [
   { id: "p5", x: 312, y: 0, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
   { id: "vj", x: 312, y: 92, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
   { id: "video", x: 312, y: 184, w: 112, h: 84, small: true, kind: "Video", preview: () => previewOp("film") },
-  { id: "char", x: 312, y: 276, w: 112, h: 84, small: true, kind: "Character", preview: () => previewOp("figure") },
-  { id: "resolume", x: 808, y: 0, w: 112, h: 84, small: true, kind: "Resolume", preview: () => previewOp("clips") },
-  { id: "maya", x: 808, y: 92, w: 112, h: 84, small: true, kind: "Maya", preview: () => previewOp("cube") },
-  { id: "hydra", x: 808, y: 184, w: 112, h: 84, small: true, kind: "Hydra", preview: () => previewOp("synth") },
-  { id: "zbrush", x: 808, y: 276, w: 112, h: 84, small: true, kind: "ZBrush", preview: () => previewOp("sculpt") },
 ];
 
 const links = [
   ["artist", "p5"],
   ["artist", "vj"],
   ["artist", "video"],
-  ["artist", "char"],
   ["p5", "works"],
   ["vj", "works"],
   ["video", "works"],
-  ["char", "3d"],
-  ["works", "resolume"],
-  ["works", "maya"],
-  ["3d", "hydra"],
-  ["3d", "zbrush"],
 ];
 
 const viewport = document.querySelector("#viewport");
