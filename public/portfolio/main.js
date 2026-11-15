@@ -254,10 +254,10 @@ function placePortrait() {
 function frameNetwork() {
   const span = networkSpan();
   leftAnchor = placePortrait();
-  const rightSpace = Math.max(88, viewport.clientWidth * 0.1);
+  const rightSpace = Math.max(48, viewport.clientWidth * 0.04);
   const width = Math.max(280, viewport.clientWidth - leftAnchor - rightSpace);
   const height = viewport.clientHeight;
-  const padding = 28;
+  const padding = 16;
   baseScale = Math.min(
     width / (span.maxX - span.minX),
     (height - padding * 2) / (span.maxY - span.minY)
