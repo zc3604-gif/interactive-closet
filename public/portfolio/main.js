@@ -367,6 +367,9 @@ function mountHowlerSketch(preview) {
 
 const workPages = {
   p5: "./p5.html",
+  vj: "./vj.html",
+  video: "./video.html",
+  works: "./moving.html",
   "3d": "./models.html",
 };
 
