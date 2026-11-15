@@ -150,12 +150,21 @@ body {
   background: transparent;
   border: 1px solid #111;
   color: #111;
-  cursor: default;
+  cursor: grab;
   user-select: none;
+}
+
+.node.lifting {
+  cursor: grabbing;
+  z-index: 5;
 }
 
 .node.link {
   cursor: pointer;
+}
+
+.node.link.lifting {
+  cursor: grabbing;
 }
 
 .node.small {

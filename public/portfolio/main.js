@@ -1,10 +1,10 @@
 const modules = [
   {
     id: "artist",
-    x: -303,
-    y: 62,
+    x: 0,
+    y: 250,
     w: 240,
-    h: 390,
+    h: 292,
     kind: "Artist information",
     title: "Zihan",
     body: "Interactive media artist. VJ, video art, interface design, 3D, and digital production.",
@@ -12,8 +12,8 @@ const modules = [
   },
   {
     id: "works",
-    x: 262,
-    y: -368,
+    x: 496,
+    y: 128,
     w: 240,
     h: 292,
     kind: "Digital art works",
@@ -23,8 +23,8 @@ const modules = [
   },
   {
     id: "3d",
-    x: 130,
-    y: 35,
+    x: 496,
+    y: 484,
     w: 240,
     h: 292,
     kind: "3D design",
@@ -32,9 +32,9 @@ const modules = [
     body: "Character and object design in Maya, Blender, ZBrush, and Fusion.",
     preview: previewForm,
   },
-  { id: "p5", x: -199, y: -313, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
-  { id: "vj", x: -66, y: -206, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
-  { id: "video", x: 14, y: -95, w: 112, h: 84, small: true, kind: "Video", preview: () => previewOp("film") },
+  { id: "p5", x: 312, y: 0, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
+  { id: "vj", x: 312, y: 92, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
+  { id: "video", x: 312, y: 184, w: 112, h: 84, small: true, kind: "Video", preview: () => previewOp("film") },
 ];
 
 const links = [
@@ -436,11 +436,7 @@ for (const module of modules) {
     node.append(copy);
   }
   module.el = node;
-  node.addEventListener("click", (event) => {
-    if (event.target.closest("[contenteditable], .upload, .media, input")) return;
-    const page = workPages[module.id];
-    if (page) window.location.href = page;
-  });
+  node.addEventListener("pointerdown", (event) => startNodeDrag(module, event));
   world.append(node);
   if (module.id !== "p5" && module.id !== "vj" && module.id !== "works" && module.id !== "3d") loadMedia(module.id, preview);
 }
@@ -473,6 +469,11 @@ function redrawWires() {
   }
 }
 
+function placeNode(module) {
+  module.el.style.left = `${module.x}px`;
+  module.el.style.top = `${module.y}px`;
+}
+
 function applyView() {
   world.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
 }
@@ -494,13 +495,7 @@ function scrollLimit() {
 }
 
 function placeVertical(span) {
-  const padTop = 54;
-  const padBottom = 18;
-  y = viewport.clientHeight / 2;
-  const top = y + span.minY * scale;
-  const bottom = y + span.maxY * scale;
-  if (top < padTop) y += padTop - top;
-  if (bottom > viewport.clientHeight - padBottom) y -= bottom - (viewport.clientHeight - padBottom);
+  y = viewport.clientHeight / 2 - ((span.minY + span.maxY) / 2) * scale;
 }
 
 function clampX(span) {
@@ -523,18 +518,10 @@ function frameNetwork() {
     height / (span.maxY - span.minY)
   );
   scale = baseScale;
-  const padRight = viewport.clientWidth - padX;
-  const padFloor = viewport.clientHeight - padBottom;
-  x = viewport.clientWidth / 2;
-  y = viewport.clientHeight / 2;
-  const left = x + span.minX * scale;
-  const right = x + span.maxX * scale;
-  const top = y + span.minY * scale;
-  const bottom = y + span.maxY * scale;
-  if (left < padX) x += padX - left;
-  if (right > padRight) x -= right - padRight;
-  if (top < padTop) y += padTop - top;
-  if (bottom > padFloor) y -= bottom - padFloor;
+  const spanW = (span.maxX - span.minX) * scale;
+  const spanH = (span.maxY - span.minY) * scale;
+  x = (viewport.clientWidth - spanW) / 2 - span.minX * scale;
+  y = padTop + (height - spanH) / 2 - span.minY * scale;
   fitted = true;
   applyView();
 }
@@ -571,9 +558,37 @@ viewport.addEventListener(
   { passive: false }
 );
 
+let dragged = null;
+let dragMoved = false;
+let dragOriginX = 0;
+let dragOriginY = 0;
+let lastX = 0;
+let lastY = 0;
+let front = 1;
 const touches = new Map();
 let pinchDistance = 0;
 let pinchX = 0;
+
+function startNodeDrag(module, event) {
+  if (event.button !== 0 || touches.size > 1) return;
+  if (event.target.closest("[contenteditable], .upload, .media")) return;
+  event.stopPropagation();
+  event.preventDefault();
+  dragged = module;
+  dragMoved = false;
+  dragOriginX = event.clientX;
+  dragOriginY = event.clientY;
+  lastX = event.clientX;
+  lastY = event.clientY;
+  front += 1;
+  module.el.style.zIndex = String(front);
+  module.el.classList.add("lifting");
+  try {
+    module.el.setPointerCapture(event.pointerId);
+  } catch {
+    // A synthetic pointer has no capture target. Window listeners still track the drag.
+  }
+}
 
 window.addEventListener(
   "pointerdown",
@@ -584,6 +599,8 @@ window.addEventListener(
       const [a, b] = [...touches.values()];
       pinchDistance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
       pinchX = (a.x + b.x) / 2;
+      if (dragged) dragged.el.classList.remove("lifting");
+      dragged = null;
     }
   },
   true
@@ -595,28 +612,46 @@ window.addEventListener(
     if (touches.has(event.pointerId)) {
       touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
     }
-    if (touches.size < 2) return;
-    event.preventDefault();
-    const [a, b] = [...touches.values()];
-    const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-    const midX = (a.x + b.x) / 2;
-    const span = networkSpan();
-    const rect = viewport.getBoundingClientRect();
-    const px = pinchX - rect.left;
-    const worldX = (px - x) / scale;
-    scale = Math.min(10000, Math.max(baseScale, scale * (distance / pinchDistance)));
-    x = px - worldX * scale + (midX - pinchX);
-    pinchDistance = distance;
-    pinchX = midX;
-    placeVertical(span);
-    clampX(span);
-    applyView();
+    if (touches.size >= 2) {
+      event.preventDefault();
+      const [a, b] = [...touches.values()];
+      const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      const midX = (a.x + b.x) / 2;
+      const span = networkSpan();
+      const rect = viewport.getBoundingClientRect();
+      const px = pinchX - rect.left;
+      const worldX = (px - x) / scale;
+      scale = Math.min(10000, Math.max(baseScale, scale * (distance / pinchDistance)));
+      x = px - worldX * scale + (midX - pinchX);
+      pinchDistance = distance;
+      pinchX = midX;
+      placeVertical(span);
+      clampX(span);
+      applyView();
+      return;
+    }
+    if (!dragged) return;
+    if (Math.hypot(event.clientX - dragOriginX, event.clientY - dragOriginY) > 4) dragMoved = true;
+    dragged.x += (event.clientX - lastX) / scale;
+    dragged.y += (event.clientY - lastY) / scale;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    placeNode(dragged);
+    redrawWires();
   },
   { passive: false }
 );
 
-function endTouch(event) {
+function endDrag(event) {
+  const module = dragged;
+  const moved = dragMoved;
   if (event && touches.has(event.pointerId)) touches.delete(event.pointerId);
+  if (touches.size > 0) return;
+  if (dragged) dragged.el.classList.remove("lifting");
+  dragged = null;
+  if (event?.type === "pointerup" && workPages[module?.id] && !moved) {
+    window.location.href = workPages[module.id];
+  }
 }
 
 viewport.addEventListener(
@@ -627,8 +662,8 @@ viewport.addEventListener(
   { passive: false }
 );
 
-window.addEventListener("pointerup", endTouch);
-window.addEventListener("pointercancel", endTouch);
+window.addEventListener("pointerup", endDrag);
+window.addEventListener("pointercancel", endDrag);
 
 window.addEventListener("resize", () => {
   frameNetwork();
