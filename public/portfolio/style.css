@@ -52,6 +52,10 @@ body {
   cursor: default;
   touch-action: none;
   background-color: #fff;
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
 #world {
