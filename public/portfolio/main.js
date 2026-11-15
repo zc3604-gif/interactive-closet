@@ -32,17 +32,6 @@ const modules = [
     body: "Character and object design in Maya, Blender, ZBrush, and Fusion.",
     preview: previewForm,
   },
-  {
-    id: "systems",
-    x: 992,
-    y: 362,
-    w: 240,
-    h: 292,
-    kind: "Live systems",
-    title: "Tools and code",
-    body: "JavaScript, p5.js, Three.js, Hydra, Resolume, MadMapper, and Module8.",
-    preview: previewSystems,
-  },
   { id: "p5", x: 312, y: 0, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
   { id: "vj", x: 312, y: 92, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
   { id: "video", x: 312, y: 184, w: 112, h: 84, small: true, kind: "Video", preview: () => previewOp("film") },
@@ -51,8 +40,7 @@ const modules = [
   { id: "maya", x: 808, y: 92, w: 112, h: 84, small: true, kind: "Maya", preview: () => previewOp("cube") },
   { id: "hydra", x: 808, y: 184, w: 112, h: 84, small: true, kind: "Hydra", preview: () => previewOp("synth") },
   { id: "zbrush", x: 808, y: 276, w: 112, h: 84, small: true, kind: "ZBrush", preview: () => previewOp("sculpt") },
-  { id: "javascript", x: 1304, y: 352, w: 112, h: 84, small: true, kind: "JavaScript", preview: () => previewOp("code") },
-  { id: "module8", x: 1304, y: 444, w: 112, h: 84, small: true, kind: "Module8", preview: () => previewOp("sliders") },
+  { id: "module8", x: 992, y: 352, w: 112, h: 84, small: true, kind: "Module8", preview: () => previewOp("sliders") },
 ];
 
 const links = [
@@ -68,12 +56,6 @@ const links = [
   ["works", "maya"],
   ["3d", "hydra"],
   ["3d", "zbrush"],
-  ["resolume", "systems"],
-  ["maya", "systems"],
-  ["hydra", "systems"],
-  ["zbrush", "systems"],
-  ["systems", "javascript"],
-  ["systems", "module8"],
 ];
 
 const viewport = document.querySelector("#viewport");
@@ -521,13 +503,3 @@ function previewOp(kind) {
   return `<svg viewBox="0 0 112 52" aria-hidden="true"><rect width="112" height="52" fill="none"/>${marks[kind]}</svg>`;
 }
 
-function previewSystems() {
-  return `<svg viewBox="0 0 240 132" aria-hidden="true">
-    <rect width="240" height="132" fill="none"/>
-    <rect x="36" y="46" width="36" height="28" fill="none" stroke="#111111"/>
-    <rect x="102" y="28" width="36" height="28" fill="none" stroke="#111111"/>
-    <rect x="102" y="76" width="36" height="28" fill="none" stroke="#111111"/>
-    <rect x="168" y="52" width="36" height="28" fill="none" stroke="#111111"/>
-    <path d="M72 60 H102 M138 42 H168 M138 90 H156 V66 H168" fill="none" stroke="#111111" stroke-width="1.2"/>
-  </svg>`;
-}
