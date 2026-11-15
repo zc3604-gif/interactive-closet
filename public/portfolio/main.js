@@ -1,7 +1,7 @@
 const modules = [
   {
     id: "artist",
-    x: 0,
+    x: -200,
     y: 250,
     w: 240,
     h: 292,
@@ -482,12 +482,12 @@ let baseScale = 1;
 let fitted = false;
 
 function networkSpan() {
-  return {
-    minX: Math.min(...modules.map((module) => module.x)),
-    minY: Math.min(...modules.map((module) => module.y)),
-    maxX: Math.max(...modules.map((module) => module.x + module.w)),
-    maxY: Math.max(...modules.map((module) => module.y + module.h)),
-  };
+  const minX = Math.min(...modules.map((module) => module.x));
+  const minY = Math.min(...modules.map((module) => module.y));
+  const maxX = Math.max(...modules.map((module) => module.x + module.w));
+  const maxY = Math.max(...modules.map((module) => module.y + module.h));
+  const overhang = Math.max(0, -minX);
+  return { minX, minY, maxX: maxX + overhang, maxY };
 }
 
 function scrollLimit() {
