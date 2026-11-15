@@ -44,15 +44,15 @@ const modules = [
     preview: previewSystems,
   },
   { id: "p5", x: 312, y: 0, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
-  { id: "vj", x: 312, y: 112, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
-  { id: "video", x: 312, y: 224, w: 112, h: 84, small: true, kind: "Video", preview: () => previewOp("film") },
-  { id: "char", x: 312, y: 336, w: 112, h: 84, small: true, kind: "Character", preview: () => previewOp("figure") },
+  { id: "vj", x: 312, y: 92, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
+  { id: "video", x: 312, y: 184, w: 112, h: 84, small: true, kind: "Video", preview: () => previewOp("film") },
+  { id: "char", x: 312, y: 276, w: 112, h: 84, small: true, kind: "Character", preview: () => previewOp("figure") },
   { id: "resolume", x: 808, y: 0, w: 112, h: 84, small: true, kind: "Resolume", preview: () => previewOp("clips") },
-  { id: "maya", x: 808, y: 112, w: 112, h: 84, small: true, kind: "Maya", preview: () => previewOp("cube") },
-  { id: "hydra", x: 808, y: 224, w: 112, h: 84, small: true, kind: "Hydra", preview: () => previewOp("synth") },
-  { id: "zbrush", x: 808, y: 336, w: 112, h: 84, small: true, kind: "ZBrush", preview: () => previewOp("sculpt") },
+  { id: "maya", x: 808, y: 92, w: 112, h: 84, small: true, kind: "Maya", preview: () => previewOp("cube") },
+  { id: "hydra", x: 808, y: 184, w: 112, h: 84, small: true, kind: "Hydra", preview: () => previewOp("synth") },
+  { id: "zbrush", x: 808, y: 276, w: 112, h: 84, small: true, kind: "ZBrush", preview: () => previewOp("sculpt") },
   { id: "javascript", x: 1304, y: 352, w: 112, h: 84, small: true, kind: "JavaScript", preview: () => previewOp("code") },
-  { id: "module8", x: 1304, y: 464, w: 112, h: 84, small: true, kind: "Module8", preview: () => previewOp("sliders") },
+  { id: "module8", x: 1304, y: 444, w: 112, h: 84, small: true, kind: "Module8", preview: () => previewOp("sliders") },
 ];
 
 const links = [
