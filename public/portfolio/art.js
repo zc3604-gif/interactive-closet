@@ -103,12 +103,45 @@ void main() {
 `;
 
 export function startArt(viewport) {
+  const editor = document.querySelector("#code");
+  const errorLine = document.querySelector("#code-error");
+  const opening = editor && editor.value.trim() ? editor.value : defaultSource();
+  if (editor && !editor.value.trim()) editor.value = opening;
+  let zoom = ZOOM;
+  let speed = SPEED;
+  let contrast = CONTRAST;
   const surfaces = ["#art", "#stage-art"]
     .map((selector) => document.querySelector(selector))
     .filter(Boolean)
     .map((canvas) => createSurface(canvas))
     .filter(Boolean);
   if (!surfaces.length) return;
+
+  function showError(message) {
+    if (!errorLine) return;
+    errorLine.hidden = !message;
+    errorLine.textContent = message || "";
+  }
+
+  function applySource(text) {
+    const next = readSource(text);
+    zoom = next.zoom;
+    speed = next.speed;
+    contrast = next.contrast;
+    const errors = surfaces
+      .map((surface) => surface.setFragment(next.fragment))
+      .filter(Boolean);
+    showError((errors[0] || "").replace(/\0/g, "").trim());
+  }
+
+  applySource(opening);
+  if (editor) {
+    let pending = 0;
+    editor.addEventListener("input", () => {
+      clearTimeout(pending);
+      pending = setTimeout(() => applySource(editor.value), 120);
+    });
+  }
 
   let clock = 0;
   let moving = true;
@@ -141,6 +174,7 @@ export function startArt(viewport) {
   });
 
   window.addEventListener("keydown", (event) => {
+    if (event.target === editor) return;
     if (event.key !== " " || event.repeat) return;
     moving = !moving;
     event.preventDefault();
@@ -149,20 +183,48 @@ export function startArt(viewport) {
   function frame(now) {
     const delta = Math.min(now - last, 50);
     last = now;
-    if (moving) clock += delta * 0.001 * SPEED;
+    if (moving) clock += delta * 0.001 * speed;
     mx += (targetX - mx) * 0.04;
     my += (targetY - my) * 0.04;
-    for (const surface of surfaces) surface.draw(clock, mx, my);
+    for (const surface of surfaces) surface.draw(clock, mx, my, zoom, contrast);
     requestAnimationFrame(frame);
   }
 
   requestAnimationFrame(frame);
 }
 
+function defaultSource() {
+  return `const ZOOM = ${ZOOM};
+const SPEED = ${SPEED};
+const CONTRAST = ${CONTRAST};
+
+${fragmentCode.trim()}`;
+}
+
+function readConst(text, name, fallback) {
+  const match = text.match(new RegExp(`(?:const|float)\\s+${name}\\s*=\\s*(-?[0-9]*\\.?[0-9]+)`));
+  if (!match) return fallback;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function readSource(text) {
+  const start = text.search(/^\s*precision\s+/m);
+  return {
+    zoom: readConst(text, "ZOOM", ZOOM),
+    speed: readConst(text, "SPEED", SPEED),
+    contrast: readConst(text, "CONTRAST", CONTRAST),
+    fragment: start >= 0 ? text.slice(start) : text,
+  };
+}
+
 function createSurface(canvas) {
-  const gl = canvas.getContext("webgl", { antialias: false, alpha: false });
+  const gl = canvas.getContext("webgl", {
+    antialias: false,
+    alpha: false,
+    preserveDrawingBuffer: true,
+  });
   if (!gl) return null;
-  const program = createProgram(gl, vertexCode, fragmentCode);
   const buffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(
@@ -170,18 +232,40 @@ function createSurface(canvas) {
     new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
     gl.STATIC_DRAW
   );
-  const position = gl.getAttribLocation(program, "aPosition");
-  gl.enableVertexAttribArray(position);
-  gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-  gl.useProgram(program);
-  const resolution = gl.getUniformLocation(program, "uResolution");
-  const mouse = gl.getUniformLocation(program, "uMouse");
-  const time = gl.getUniformLocation(program, "uTime");
-  const zoom = gl.getUniformLocation(program, "uZoom");
-  const contrast = gl.getUniformLocation(program, "uContrast");
+  let program = null;
+  let resolution = null;
+  let mouse = null;
+  let time = null;
+  let zoom = null;
+  let contrast = null;
+
+  function bind(next) {
+    program = next;
+    gl.useProgram(program);
+    const position = gl.getAttribLocation(program, "aPosition");
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    if (position >= 0) {
+      gl.enableVertexAttribArray(position);
+      gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+    }
+    resolution = gl.getUniformLocation(program, "uResolution");
+    mouse = gl.getUniformLocation(program, "uMouse");
+    time = gl.getUniformLocation(program, "uTime");
+    zoom = gl.getUniformLocation(program, "uZoom");
+    contrast = gl.getUniformLocation(program, "uContrast");
+  }
 
   return {
-    draw(clock, mx, my) {
+    setFragment(source) {
+      compile.lastError = "";
+      const next = createProgram(gl, vertexCode, source);
+      if (!next) return compile.lastError || "The background shader could not be compiled.";
+      if (program) gl.deleteProgram(program);
+      bind(next);
+      return "";
+    },
+    draw(clock, mx, my, zoomValue, contrastValue) {
+      if (!program) return;
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
       const width = Math.max(1, Math.floor(canvas.clientWidth * ratio));
       const height = Math.max(1, Math.floor(canvas.clientHeight * ratio));
@@ -190,21 +274,36 @@ function createSurface(canvas) {
         canvas.height = height;
       }
       gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.uniform2f(resolution, canvas.width, canvas.height);
-      gl.uniform2f(mouse, mx, my);
-      gl.uniform1f(time, clock);
-      gl.uniform1f(zoom, ZOOM);
-      gl.uniform1f(contrast, CONTRAST);
+      gl.useProgram(program);
+      if (resolution) gl.uniform2f(resolution, canvas.width, canvas.height);
+      if (mouse) gl.uniform2f(mouse, mx, my);
+      if (time) gl.uniform1f(time, clock);
+      if (zoom) gl.uniform1f(zoom, zoomValue);
+      if (contrast) gl.uniform1f(contrast, contrastValue);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     },
   };
 }
 
 function createProgram(gl, vertexSource, fragmentSource) {
+  const vertex = compile(gl, gl.VERTEX_SHADER, vertexSource);
+  const fragment = compile(gl, gl.FRAGMENT_SHADER, fragmentSource);
+  if (!vertex || !fragment) {
+    if (vertex) gl.deleteShader(vertex);
+    if (fragment) gl.deleteShader(fragment);
+    return null;
+  }
   const program = gl.createProgram();
-  gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, vertexSource));
-  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fragmentSource));
+  gl.attachShader(program, vertex);
+  gl.attachShader(program, fragment);
   gl.linkProgram(program);
+  gl.deleteShader(vertex);
+  gl.deleteShader(fragment);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    compile.lastError = gl.getProgramInfoLog(program) || "Shader failed to link.";
+    gl.deleteProgram(program);
+    return null;
+  }
   return program;
 }
 
@@ -212,5 +311,11 @@ function compile(gl, type, source) {
   const shader = gl.createShader(type);
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const log = gl.getShaderInfoLog(shader);
+    gl.deleteShader(shader);
+    compile.lastError = log || "Shader failed to compile.";
+    return null;
+  }
   return shader;
 }

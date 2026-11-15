@@ -9,62 +9,21 @@
   <body>
     <header class="chrome">
       <p class="path">Zihan <span>/ portfolio</span></p>
-      <p class="help">Drag a module to rearrange it. Drag the grid to move. Pinch or scroll to zoom.</p>
+      <p class="help">Edit the functions to change the background. Drag the grid to move. Pinch or scroll to zoom.</p>
     </header>
     <aside id="stage">
-      <p class="stage-label">p5.js <span>/ functions</span></p>
-      <pre class="code"><code>let art;
-let clock = 0;
-let moving = true;
-let mx = 0;
-let my = 0;
-
-const ZOOM = 1.8;
+      <p class="stage-label">functions <span>/ live</span></p>
+      <textarea id="code" class="code" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off">const ZOOM = 1.8;
 const SPEED = 0.35;
 const CONTRAST = 1.4;
 
-function setup() {
-  createCanvas(700, 700, WEBGL);
-  pixelDensity(1);
-  noStroke();
+precision highp float;
 
-  art = createShader(vertexCode, fragmentCode);
-}
-
-function draw() {
-  if (moving) {
-    clock += min(deltaTime, 50) * 0.001 * SPEED;
-  }
-
-  if (
-    mouseX &gt;= 0 &amp;&amp; mouseX &lt;= width &amp;&amp;
-    mouseY &gt;= 0 &amp;&amp; mouseY &lt;= height
-  ) {
-    mx = lerp(mx, map(mouseX, 0, width, -1, 1), 0.04);
-    my = lerp(my, map(mouseY, 0, height, 1, -1), 0.04);
-  }
-
-  shader(art);
-
-  art.setUniform("uResolution", [width, height]);
-  art.setUniform("uMouse", [mx, my]);
-  art.setUniform("uTime", clock);
-  art.setUniform("uZoom", ZOOM);
-  art.setUniform("uContrast", CONTRAST);
-
-  plane(width, height);
-}
-
-function keyPressed() {
-  if (key === " ") {
-    moving = !moving;
-    return false;
-  }
-
-  if (key === "s" || key === "S") {
-    saveCanvas("silver-math-art", "png");
-  }
-}
+uniform vec2 uResolution;
+uniform vec2 uMouse;
+uniform float uTime;
+uniform float uZoom;
+uniform float uContrast;
 
 vec2 multiplyComplex(vec2 a, vec2 b) {
   return vec2(
@@ -75,11 +34,80 @@ vec2 multiplyComplex(vec2 a, vec2 b) {
 
 vec2 divideComplex(vec2 a, vec2 b) {
   float denominator = max(dot(b, b), 0.00001);
+
   return vec2(
     a.x * b.x + a.y * b.y,
     a.y * b.x - a.x * b.y
   ) / denominator;
-}</code></pre>
+}
+
+void main() {
+  vec2 z = (
+    2.0 * gl_FragCoord.xy - uResolution
+  ) / min(uResolution.x, uResolution.y);
+
+  z *= uZoom;
+
+  float angle = 0.35;
+  z = mat2(
+    cos(angle), -sin(angle),
+    sin(angle),  cos(angle)
+  ) * z;
+
+  vec2 a = vec2(
+    -0.45 + 0.12 * sin(uTime),
+     0.65
+  );
+
+  vec2 b = vec2(
+     0.25,
+    -0.65 + 0.10 * cos(uTime)
+  );
+
+  vec2 c = vec2(
+     0.25 + uMouse.x * 0.55,
+     0.25 + uMouse.y * 0.55
+  );
+
+  vec2 numerator = multiplyComplex(z - a, z - b);
+  vec2 w = divideComplex(numerator, z - c);
+
+  float phase = atan(w.y, w.x);
+  float magnitude = length(w);
+
+  float bend = 0.45 * sin(
+    1.5 * log(1.0 + magnitude)
+  );
+
+  float light = 0.5 + 0.5 * cos(
+    phase + bend + 0.3 * sin(uTime * 0.5)
+  );
+
+  light = clamp(
+    (light - 0.5) * uContrast + 0.5,
+    0.0,
+    1.0
+  );
+
+  vec3 shadow = vec3(0.025, 0.020, 0.055);
+  vec3 silver = vec3(0.56, 0.63, 0.70);
+  vec3 highlight = vec3(0.88, 1.0, 1.0);
+
+  vec3 color = mix(
+    shadow,
+    silver,
+    smoothstep(0.0, 0.75, light)
+  );
+
+  color = mix(
+    color,
+    highlight,
+    smoothstep(0.65, 1.0, light)
+  );
+
+  gl_FragColor = vec4(color, 1.0);
+}</textarea>
+      <p id="code-error" class="code-error" hidden></p>
     </aside>
     <div id="viewport" tabindex="0">
       <canvas id="art"></canvas>

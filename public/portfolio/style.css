@@ -76,10 +76,16 @@ body {
 .code {
   flex: 1;
   min-height: 0;
+  width: 100%;
   margin: 0;
+  padding: 0;
   overflow: auto;
   color: #f3f3f3;
   background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  caret-color: #fff;
   font-family: Consolas, "Courier New", monospace;
   font-size: 12px;
   line-height: 1.45;
@@ -87,6 +93,22 @@ body {
   overflow-wrap: anywhere;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+@media (pointer: coarse) {
+  .code {
+    font-size: 16px;
+  }
+}
+
+.code-error {
+  margin: 0;
+  color: #ffb4b4;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
 }
 
 .code::-webkit-scrollbar {
