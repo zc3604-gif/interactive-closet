@@ -273,29 +273,16 @@ function frameNetwork() {
   const minY = Math.min(...modules.map((module) => module.y));
   const maxX = Math.max(...modules.map((module) => module.x + module.w));
   const maxY = Math.max(...modules.map((module) => module.y + module.h));
-  const padding = 72;
   const stage = document.querySelector("#stage");
-  const stageWidth = stage ? stage.getBoundingClientRect().width + 28 : 0;
-  const width = viewport.clientWidth - stageWidth;
+  const stageWidth = stage ? stage.getBoundingClientRect().width : 0;
+  const left = Math.max(16, stageWidth * 0.46);
+  const rightSpace = viewport.clientWidth * 0.3;
+  const width = Math.max(240, viewport.clientWidth - left - rightSpace);
   const height = viewport.clientHeight;
-  scale = Math.min(
-    (width - padding * 2) / (maxX - minX),
-    (height - padding * 2) / (maxY - minY)
-  );
-  x = stageWidth + (width - (maxX - minX) * scale) / 2 - minX * scale;
+  const padding = 64;
+  scale = Math.min(width / (maxX - minX), (height - padding * 2) / (maxY - minY));
+  x = left - minX * scale;
   y = (height - (maxY - minY) * scale) / 2 - minY * scale;
-  applyView();
-}
-
-function zoomAt(clientX, clientY, nextScale) {
-  const rect = viewport.getBoundingClientRect();
-  const px = clientX - rect.left;
-  const py = clientY - rect.top;
-  const worldX = (px - x) / scale;
-  const worldY = (py - y) / scale;
-  scale = Math.min(200, Math.max(0.015, nextScale));
-  x = px - worldX * scale;
-  y = py - worldY * scale;
   applyView();
 }
 
@@ -303,63 +290,17 @@ viewport.addEventListener(
   "wheel",
   (event) => {
     event.preventDefault();
-    const sideways = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
-    if (sideways) {
-      x -= event.deltaX || event.deltaY;
-      applyView();
-      return;
-    }
-    const delta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
-    zoomAt(event.clientX, event.clientY, scale * Math.exp(-delta * 0.0014));
   },
   { passive: false }
 );
 
-let panning = false;
 let dragged = null;
 let lastX = 0;
 let lastY = 0;
 let front = 1;
-const touches = new Map();
-let pinchDistance = 0;
-let pinchX = 0;
-let pinchY = 0;
-
-function pointDistance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-function rememberTouch(event) {
-  touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
-}
-
-function startPinch() {
-  const [a, b] = touches.values();
-  pinchDistance = Math.max(1, pointDistance(a, b));
-  pinchX = (a.x + b.x) / 2;
-  pinchY = (a.y + b.y) / 2;
-  if (dragged) dragged.el.classList.remove("lifting");
-  dragged = null;
-  panning = false;
-  viewport.classList.remove("dragging");
-}
-
-function applyPinch() {
-  const [a, b] = touches.values();
-  const nextDistance = Math.max(1, pointDistance(a, b));
-  const midX = (a.x + b.x) / 2;
-  const midY = (a.y + b.y) / 2;
-  zoomAt(pinchX, pinchY, scale * (nextDistance / pinchDistance));
-  x += midX - pinchX;
-  y += midY - pinchY;
-  pinchDistance = nextDistance;
-  pinchX = midX;
-  pinchY = midY;
-  applyView();
-}
 
 function startNodeDrag(module, event) {
-  if (event.button !== 0 || touches.size > 1) return;
+  if (event.button !== 0) return;
   event.stopPropagation();
   event.preventDefault();
   dragged = module;
@@ -375,85 +316,25 @@ function startNodeDrag(module, event) {
   }
 }
 
-window.addEventListener(
-  "pointerdown",
-  (event) => {
-    if (event.pointerType !== "touch") return;
-    rememberTouch(event);
-    if (touches.size === 2) startPinch();
-  },
-  true
-);
-
-viewport.addEventListener("pointerdown", (event) => {
-  if (event.button !== 0 || event.target.closest(".node") || touches.size > 1) return;
-  panning = true;
+window.addEventListener("pointermove", (event) => {
+  if (!dragged) return;
+  dragged.x += (event.clientX - lastX) / scale;
+  dragged.y += (event.clientY - lastY) / scale;
   lastX = event.clientX;
   lastY = event.clientY;
-  viewport.classList.add("dragging");
-  try {
-    viewport.setPointerCapture(event.pointerId);
-  } catch {
-    // Touch pinch can arrive before this pointer has a capture target.
-  }
+  placeNode(dragged);
+  redrawWires();
 });
 
-window.addEventListener(
-  "pointermove",
-  (event) => {
-    if (touches.has(event.pointerId)) rememberTouch(event);
-    if (touches.size >= 2) {
-      event.preventDefault();
-      applyPinch();
-      return;
-    }
-    if (dragged) {
-      dragged.x += (event.clientX - lastX) / scale;
-      dragged.y += (event.clientY - lastY) / scale;
-      lastX = event.clientX;
-      lastY = event.clientY;
-      placeNode(dragged);
-      redrawWires();
-      return;
-    }
-    if (!panning) return;
-    x += event.clientX - lastX;
-    y += event.clientY - lastY;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    applyView();
-  },
-  { passive: false }
-);
-
-function endDrag(event) {
-  if (event && touches.has(event.pointerId)) touches.delete(event.pointerId);
-  if (touches.size >= 2) return;
-  if (touches.size === 1) {
-    const [remaining] = touches.values();
-    lastX = remaining.x;
-    lastY = remaining.y;
-    pinchDistance = 0;
-    return;
-  }
+function endDrag() {
   if (dragged) dragged.el.classList.remove("lifting");
   dragged = null;
-  panning = false;
-  pinchDistance = 0;
-  viewport.classList.remove("dragging");
 }
 
 window.addEventListener("pointerup", endDrag);
 window.addEventListener("pointercancel", endDrag);
-viewport.addEventListener(
-  "touchmove",
-  (event) => {
-    if (event.touches.length > 1) event.preventDefault();
-  },
-  { passive: false }
-);
 
-window.addEventListener("resize", applyView);
+window.addEventListener("resize", frameNetwork);
 frameNetwork();
 
 function previewArtist() {
