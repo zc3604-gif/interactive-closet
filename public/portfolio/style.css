@@ -201,20 +201,3 @@ p {
   line-height: 1.45;
 }
 
-.port {
-  position: absolute;
-  top: 66px;
-  width: 8px;
-  height: 8px;
-  margin-top: -4px;
-  background: #111;
-  border: 1px solid #111;
-}
-
-.port.in {
-  left: -5px;
-}
-
-.port.out {
-  right: -5px;
-}

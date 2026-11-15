@@ -254,8 +254,6 @@ for (const module of modules) {
     copy.append(kind, title, body);
     node.append(copy);
   }
-  addPorts(node, module, "in", inSlot[module.id] || 0);
-  addPorts(node, module, "out", outSlot[module.id] || 0);
   module.el = node;
   node.addEventListener("pointerdown", (event) => startNodeDrag(module, event));
   world.append(node);
@@ -271,15 +269,6 @@ function portTop(node, index, total) {
   if (total <= 1) return band * 0.5;
   const margin = node.small ? 7 : 12;
   return margin + ((band - margin * 2) * index) / (total - 1);
-}
-
-function addPorts(nodeEl, module, side, total) {
-  for (let index = 0; index < total; index += 1) {
-    const port = document.createElement("span");
-    port.className = `port ${side}`;
-    port.style.top = `${portTop(module, index, total)}px`;
-    nodeEl.append(port);
-  }
 }
 
 function wirePath(link) {
