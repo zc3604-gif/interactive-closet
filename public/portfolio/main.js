@@ -201,62 +201,8 @@ function stepTravelers(now) {
 
 requestAnimationFrame(stepTravelers);
 
-const axes = document.querySelector("#axes");
-const axisTicks = document.querySelector("#axis-ticks");
-
-function axisStep() {
-  const raw = 88 / scale;
-  const power = 10 ** Math.floor(Math.log10(raw));
-  const fraction = raw / power;
-  const nice = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
-  return nice * power;
-}
-
-function formatAxis(value) {
-  const rounded = Math.round(value * 1000) / 1000;
-  return String(rounded);
-}
-
-function drawAxisMarks(originX, originY) {
-  const step = axisStep();
-  const width = viewport.clientWidth;
-  const height = viewport.clientHeight;
-  const worldLeft = -x / scale;
-  const worldRight = (width - x) / scale;
-  const worldTop = -y / scale;
-  const worldBottom = (height - y) / scale;
-  const marks = [];
-  const firstX = Math.ceil(worldLeft / step);
-  const lastX = Math.floor(worldRight / step);
-  for (let index = firstX; index <= lastX; index += 1) {
-    const value = index * step;
-    const sx = x + value * scale;
-    const sy = originY;
-    if (Math.abs(sx - originX) < 36) continue;
-    marks.push(`<line x1="${sx}" y1="${sy - 5}" x2="${sx}" y2="${sy}"></line>`);
-    marks.push(`<text x="${sx}" y="${sy - 8}" text-anchor="middle">${formatAxis(value)}</text>`);
-  }
-  const firstY = Math.ceil(worldTop / step);
-  const lastY = Math.floor(worldBottom / step);
-  for (let index = firstY; index <= lastY; index += 1) {
-    const value = index * step;
-    const sx = originX;
-    const sy = y + value * scale;
-    if (Math.abs(sy - originY) < 22) continue;
-    marks.push(`<line x1="${sx - 5}" y1="${sy}" x2="${sx}" y2="${sy}"></line>`);
-    marks.push(`<text x="${sx - 8}" y="${sy + 3}" text-anchor="end">${formatAxis(value)}</text>`);
-  }
-  marks.push(`<text x="${originX - 8}" y="${originY - 8}" text-anchor="end">0</text>`);
-  axisTicks.innerHTML = marks.join("");
-}
-
 function applyView() {
   world.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
-  const originX = x;
-  const originY = y;
-  axes.style.setProperty("--axis-x", `${originX}px`);
-  axes.style.setProperty("--axis-y", `${originY}px`);
-  drawAxisMarks(originX, originY);
 }
 
 let baseScale = 1;
