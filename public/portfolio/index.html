@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>Zihan — Portfolio</title>
-    <link rel="stylesheet" href="./style.css?v=19" />
+    <link rel="stylesheet" href="./style.css?v=20" />
   </head>
   <body>
     <header class="chrome">
@@ -15,11 +15,12 @@
       <p class="help">Click p5.js to open works. Click text to edit it. The + on a module adds an image or video.</p>
     </header>
     <div id="viewport" tabindex="0">
+      <div id="axes" aria-hidden="true">
+        <span>X</span>
+        <span>Y</span>
+      </div>
       <div id="world"></div>
     </div>
-    <script>
-      document.querySelector("#axes")?.remove();
-    </script>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
     <script type="module" src="./main.js?v=23"></script>
   </body>

@@ -66,6 +66,51 @@ body {
   transform-origin: 0 0;
 }
 
+#axes {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+#axes::before,
+#axes::after {
+  content: "";
+  position: absolute;
+  background: #111;
+}
+
+#axes::before {
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+#axes::after {
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+#axes span {
+  position: absolute;
+  color: #111;
+  font-size: 12px;
+  line-height: 1;
+}
+
+#axes span:first-child {
+  top: calc(50% - 16px);
+  right: 14px;
+}
+
+#axes span:last-child {
+  top: 48px;
+  left: calc(50% + 8px);
+}
+
 #wires {
   position: absolute;
   top: 0;
