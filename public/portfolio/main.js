@@ -21,6 +21,17 @@ const modules = [
     body: "VJ sets, video art, and interface design. Photoshop and Premiere.",
     preview: previewWorks,
   },
+  {
+    id: "3d",
+    x: 496,
+    y: 484,
+    w: 240,
+    h: 292,
+    kind: "3D design",
+    title: "Form and character",
+    body: "Character and object design in Maya, Blender, ZBrush, and Fusion.",
+    preview: previewForm,
+  },
   { id: "p5", x: 312, y: 0, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
   { id: "vj", x: 312, y: 92, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
   { id: "video", x: 312, y: 184, w: 112, h: 84, small: true, kind: "Video", preview: () => previewOp("film") },
@@ -39,8 +50,11 @@ const links = [
   ["p5", "works"],
   ["vj", "works"],
   ["video", "works"],
+  ["char", "3d"],
   ["works", "resolume"],
   ["works", "maya"],
+  ["3d", "hydra"],
+  ["3d", "zbrush"],
 ];
 
 const viewport = document.querySelector("#viewport");
@@ -311,11 +325,16 @@ function mountHowlerSketch(preview) {
   requestAnimationFrame(frame);
 }
 
+const workPages = {
+  p5: "./p5.html",
+  "3d": "./models.html",
+};
+
 function bindEditable(element, moduleId, field) {
   const saved = readTextStore()[moduleId];
   if (saved && typeof saved[field] === "string") element.textContent = saved[field];
   element.spellcheck = false;
-  if (moduleId !== "p5") element.addEventListener("pointerdown", (event) => event.stopPropagation());
+  if (!workPages[moduleId]) element.addEventListener("pointerdown", (event) => event.stopPropagation());
   element.addEventListener("blur", () => writeTextStore(moduleId, field, element.textContent));
   element.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && field !== "body") event.preventDefault();
@@ -325,8 +344,10 @@ function bindEditable(element, moduleId, field) {
 for (const module of modules) {
   const node = document.createElement("article");
   node.className = module.small ? "node small" : "node";
-  if (module.id === "p5") node.classList.add("link");
-  if (module.id === "p5") node.title = "Open p5.js works";
+  if (workPages[module.id]) {
+    node.classList.add("link");
+    node.title = "Open works";
+  }
   node.style.left = `${module.x}px`;
   node.style.top = `${module.y}px`;
   const preview = document.createElement("div");
@@ -587,8 +608,8 @@ function endDrag(event) {
   if (touches.size > 0) return;
   if (dragged) dragged.el.classList.remove("lifting");
   dragged = null;
-  if (event?.type === "pointerup" && module?.id === "p5" && !moved) {
-    window.location.href = "./p5.html";
+  if (event?.type === "pointerup" && workPages[module?.id] && !moved) {
+    window.location.href = workPages[module.id];
   }
 }
 
@@ -715,6 +736,14 @@ function previewWorks() {
     <rect width="240" height="132" fill="none"/>
     <rect x="28" y="36" width="184" height="60" fill="none" stroke="#111111" stroke-width="1.2"/>
     <path d="M28 96 L70 62 L104 84 L150 46 L212 78" fill="none" stroke="#111111" stroke-width="1.3"/>
+  </svg>`;
+}
+
+function previewForm() {
+  return `<svg viewBox="0 0 240 132" aria-hidden="true">
+    <rect width="240" height="132" fill="none"/>
+    <path d="M120 28 L168 52 L168 96 L120 118 L72 96 L72 52 Z" fill="none" stroke="#111111" stroke-width="1.3"/>
+    <path d="M120 28 L120 74 L168 96 M120 74 L72 96" fill="none" stroke="#111111" stroke-width="1.2"/>
   </svg>`;
 }
 

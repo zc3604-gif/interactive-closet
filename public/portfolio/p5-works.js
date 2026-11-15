@@ -4,9 +4,11 @@ const urls = new Set();
 
 function openWorksDb() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("portfolio-works", 1);
+    const request = indexedDB.open("portfolio-works", 2);
     request.onupgradeneeded = () => {
-      request.result.createObjectStore("p5", { keyPath: "id" });
+      const db = request.result;
+      if (!db.objectStoreNames.contains("p5")) db.createObjectStore("p5", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("models")) db.createObjectStore("models", { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
