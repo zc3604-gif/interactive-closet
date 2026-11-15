@@ -320,9 +320,46 @@ let dragged = null;
 let lastX = 0;
 let lastY = 0;
 let front = 1;
+const touches = new Map();
+let pinchDistance = 0;
+let pinchX = 0;
+let pinchY = 0;
+
+function pointDistance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function rememberTouch(event) {
+  touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+}
+
+function startPinch() {
+  const [a, b] = touches.values();
+  pinchDistance = Math.max(1, pointDistance(a, b));
+  pinchX = (a.x + b.x) / 2;
+  pinchY = (a.y + b.y) / 2;
+  if (dragged) dragged.el.classList.remove("lifting");
+  dragged = null;
+  panning = false;
+  viewport.classList.remove("dragging");
+}
+
+function applyPinch() {
+  const [a, b] = touches.values();
+  const nextDistance = Math.max(1, pointDistance(a, b));
+  const midX = (a.x + b.x) / 2;
+  const midY = (a.y + b.y) / 2;
+  zoomAt(pinchX, pinchY, scale * (nextDistance / pinchDistance));
+  x += midX - pinchX;
+  y += midY - pinchY;
+  pinchDistance = nextDistance;
+  pinchX = midX;
+  pinchY = midY;
+  applyView();
+}
 
 function startNodeDrag(module, event) {
-  if (event.button !== 0) return;
+  if (event.button !== 0 || touches.size > 1) return;
   event.stopPropagation();
   event.preventDefault();
   dragged = module;
@@ -338,42 +375,83 @@ function startNodeDrag(module, event) {
   }
 }
 
+window.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (event.pointerType !== "touch") return;
+    rememberTouch(event);
+    if (touches.size === 2) startPinch();
+  },
+  true
+);
+
 viewport.addEventListener("pointerdown", (event) => {
-  if (event.button !== 0 || event.target.closest(".node")) return;
+  if (event.button !== 0 || event.target.closest(".node") || touches.size > 1) return;
   panning = true;
   lastX = event.clientX;
   lastY = event.clientY;
   viewport.classList.add("dragging");
-  viewport.setPointerCapture(event.pointerId);
+  try {
+    viewport.setPointerCapture(event.pointerId);
+  } catch {
+    // Touch pinch can arrive before this pointer has a capture target.
+  }
 });
 
-window.addEventListener("pointermove", (event) => {
-  if (dragged) {
-    dragged.x += (event.clientX - lastX) / scale;
-    dragged.y += (event.clientY - lastY) / scale;
+window.addEventListener(
+  "pointermove",
+  (event) => {
+    if (touches.has(event.pointerId)) rememberTouch(event);
+    if (touches.size >= 2) {
+      event.preventDefault();
+      applyPinch();
+      return;
+    }
+    if (dragged) {
+      dragged.x += (event.clientX - lastX) / scale;
+      dragged.y += (event.clientY - lastY) / scale;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      placeNode(dragged);
+      redrawWires();
+      return;
+    }
+    if (!panning) return;
+    x += event.clientX - lastX;
+    y += event.clientY - lastY;
     lastX = event.clientX;
     lastY = event.clientY;
-    placeNode(dragged);
-    redrawWires();
+    applyView();
+  },
+  { passive: false }
+);
+
+function endDrag(event) {
+  if (event && touches.has(event.pointerId)) touches.delete(event.pointerId);
+  if (touches.size >= 2) return;
+  if (touches.size === 1) {
+    const [remaining] = touches.values();
+    lastX = remaining.x;
+    lastY = remaining.y;
+    pinchDistance = 0;
     return;
   }
-  if (!panning) return;
-  x += event.clientX - lastX;
-  y += event.clientY - lastY;
-  lastX = event.clientX;
-  lastY = event.clientY;
-  applyView();
-});
-
-function endDrag() {
   if (dragged) dragged.el.classList.remove("lifting");
   dragged = null;
   panning = false;
+  pinchDistance = 0;
   viewport.classList.remove("dragging");
 }
 
 window.addEventListener("pointerup", endDrag);
 window.addEventListener("pointercancel", endDrag);
+viewport.addEventListener(
+  "touchmove",
+  (event) => {
+    if (event.touches.length > 1) event.preventDefault();
+  },
+  { passive: false }
+);
 
 window.addEventListener("resize", applyView);
 frameNetwork();
