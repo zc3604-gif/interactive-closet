@@ -210,7 +210,11 @@
   // Send files to the relay and drive the button's status text.
   // files: [{ path, encoding: "utf-8" | "base64", content }].
   // On HTTP 401 the stored passphrase is cleared and the user is
-  // prompted once more before retrying.
+  // prompted once more before retrying. Whenever a save does not
+  // succeed — failed retry, any other non-ok result, or a network
+  // failure — the stored passphrase is cleared too, so the next
+  // click always asks for it fresh instead of silently reusing a
+  // phrase that already failed. A successful save keeps it stored.
   async function saveFiles(files, button) {
     const setLabel = (text) => {
       if (button) button.textContent = text;
@@ -244,6 +248,9 @@
           return { ok: false, error: "no passphrase given" };
         }
         result = await postSave(files, retryPassphrase);
+        // A failed retry must not leave its phrase stored: the next
+        // click must ask fresh instead of silently reusing it.
+        if (result.status === 401) clearPassphrase();
       }
       if (result.ok && result.data && result.data.ok) {
         const time = new Date().toLocaleTimeString([], {
@@ -259,10 +266,16 @@
       }
       const message =
         (result.data && result.data.error) || `save failed (HTTP ${result.status})`;
+      // Any failed save clears the stored phrase so the next click
+      // always asks for it fresh.
+      clearPassphrase();
       setLabel(result.status === 401 ? "Save failed — wrong passphrase" : "Save failed — try again");
       setBusy(false);
       return { ok: false, error: message };
     } catch (error) {
+      // A network failure must not leave a possibly-wrong phrase
+      // stored either: the next click asks fresh.
+      clearPassphrase();
       setLabel("Save failed — try again");
       setBusy(false);
       return { ok: false, error: String((error && error.message) || error) };
