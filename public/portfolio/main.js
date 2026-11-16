@@ -98,6 +98,19 @@ function readCustomLinks() {
 function writeCustomLinks(list) {
   try { localStorage.setItem(customLinksKey, JSON.stringify(list)); } catch {}
 }
+// Wires the user deleted with Backspace: built-in pairs remembered here
+// so they stay deleted across reloads (custom wires are dropped from
+// portfolio-custom-links instead, so they can be re-added cleanly).
+const removedLinksKey = "portfolio-removed-links";
+function readRemovedLinks() {
+  try {
+    const list = JSON.parse(localStorage.getItem(removedLinksKey)) || [];
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+}
+function writeRemovedLinks(list) {
+  try { localStorage.setItem(removedLinksKey, JSON.stringify(list)); } catch {}
+}
 // Restore custom modules saved in this browser, before the position
 // restores below (dragged positions still win over the fallback here).
 for (const def of readCustomStore()) {
@@ -196,6 +209,17 @@ const links = [
   ["vj", "works"],
   ["video", "works"],
 ];
+
+// Wires the user deleted with Backspace stay deleted: the removal is
+// remembered in localStorage (portfolio-removed-links), so a reload
+// does not bring the built-in wire back.
+{
+  const removed = readRemovedLinks();
+  for (let i = links.length - 1; i >= 0; i -= 1) {
+    const [a, b] = links[i];
+    if (removed.some(([x, y]) => (x === a && y === b) || (x === b && y === a))) links.splice(i, 1);
+  }
+}
 
 // Restore wires the user added with "Add wire" (same localStorage idea).
 for (const pair of readCustomLinks()) {
@@ -318,6 +342,65 @@ handlesSvg.style.left = "0";
 handlesSvg.style.overflow = "visible";
 handlesSvg.style.pointerEvents = "none";
 const wireHandles = [];
+// ---- Selecting + deleting a wire (Backspace) ----
+// Front page only. Clicking a wire selects it (thicker stroke, black
+// end dots); Backspace deletes the selected wire. Clicking empty canvas
+// or pressing Esc deselects. Built-in deletions are remembered in
+// portfolio-removed-links so the wire stays gone on reload; custom
+// wires are dropped from portfolio-custom-links instead. Deleting a
+// wire removes its port dots, never any module. Selection is kept as a
+// "from>to" key (not the routed object) so it survives rebuilds.
+let selectedWireKey = null;
+const wireHitPaths = [];
+function wireKey(link) { return link.from + ">" + link.to; }
+function selectWire(link) {
+  selectedWireKey = link ? wireKey(link) : null;
+  refreshWireSelection();
+}
+function refreshWireSelection() {
+  wires.forEach((path, i) => {
+    const link = routed[i];
+    const selected = !!link && selectedWireKey === wireKey(link);
+    path.style.strokeWidth = selected ? "4.5" : "";
+  });
+  for (const h of wireHandles) {
+    h.dot.setAttribute("fill", selectedWireKey === wireKey(h.link) ? "#111" : "#fff");
+  }
+}
+function deleteSelectedWire() {
+  if (!selectedWireKey) return;
+  const [from, to] = selectedWireKey.split(">");
+  if (!links.some(([a, b]) => (a === from && b === to) || (a === to && b === from))) {
+    selectWire(null);
+    return;
+  }
+  const customs = readCustomLinks();
+  const customIndex = customs.findIndex(([a, b]) => (a === from && b === to) || (a === to && b === from));
+  if (customIndex >= 0) {
+    customs.splice(customIndex, 1);
+    writeCustomLinks(customs);
+  } else {
+    const removed = readRemovedLinks();
+    if (!removed.some(([a, b]) => (a === from && b === to) || (a === to && b === from))) {
+      removed.push([from, to]);
+      writeRemovedLinks(removed);
+    }
+  }
+  // Drop the link and its saved port positions; modules stay put.
+  for (let i = links.length - 1; i >= 0; i -= 1) {
+    if ((links[i][0] === from && links[i][1] === to) || (links[i][0] === to && links[i][1] === from)) links.splice(i, 1);
+  }
+  const ports = readPortStore();
+  let changed = false;
+  for (const key of [from + ">" + to + ":from", from + ">" + to + ":to", to + ">" + from + ":from", to + ">" + from + ":to"]) {
+    if (key in ports) { delete ports[key]; changed = true; }
+  }
+  if (changed) { try { localStorage.setItem(portKey, JSON.stringify(ports)); } catch {} }
+  selectWire(null);
+  rebuildRouted();
+  buildWireOverlays();
+  redrawWires();
+}
 // Rebuildable wire overlays: paths + end dots are (re)created from the
 // current `routed` list, so Add wire / removing a custom module can add
 // or drop wires without a reload. Saved port positions live in
@@ -325,6 +408,8 @@ const wireHandles = [];
 function buildWireOverlays() {
   for (const path of wires) path.remove();
   wires.length = 0;
+  for (const hit of wireHitPaths) hit.remove();
+  wireHitPaths.length = 0;
   for (const h of wireHandles) { h.hit.remove(); h.dot.remove(); }
   wireHandles.length = 0;
   for (const link of routed) {
@@ -333,6 +418,23 @@ function buildWireOverlays() {
     path.setAttribute("d", wirePath(link));
     svg.append(path);
     wires.push(path);
+    // Fat invisible hit path over the thin visible wire, so the wire is
+    // easy to click (same idea as the r=11 grab circles on the dots).
+    // The #wires svg has pointer-events:none, so this sets its own.
+    const hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    hit.setAttribute("class", "wire-hit");
+    hit.setAttribute("d", wirePath(link));
+    hit.setAttribute("fill", "none");
+    hit.setAttribute("stroke", "transparent");
+    hit.setAttribute("stroke-width", "14");
+    hit.style.pointerEvents = "stroke";
+    hit.style.cursor = "pointer";
+    hit.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectWire(link);
+    });
+    svg.append(hit);
+    wireHitPaths.push(hit);
   }
   for (let li = 0; li < routed.length; li++) {
   const link = routed[li];
@@ -380,6 +482,7 @@ function buildWireOverlays() {
     wireHandles.push({ link, end, dot, hit });
   }
   }
+  refreshWireSelection();
 }
 buildWireOverlays();
 
@@ -991,6 +1094,9 @@ let addWireBtn = null;
 
 function setWirePicking(on) {
   wirePicking = on;
+  // Starting to pick a new wire drops any selected wire, so Backspace
+  // cannot delete it by accident while picking modules.
+  if (on) selectWire(null);
   if (!on) {
     if (wirePickFrom && byId[wirePickFrom] && byId[wirePickFrom].el) {
       byId[wirePickFrom].el.style.outline = "";
@@ -1024,6 +1130,11 @@ function pickModuleForWire(moduleId) {
   const customs = readCustomLinks();
   customs.push([from, to]);
   writeCustomLinks(customs);
+  // Re-adding a wire the user had deleted with Backspace clears the
+  // remembered removal, so it is not deleted again on reload.
+  const removed = readRemovedLinks();
+  const removedIndex = removed.findIndex(([a, b]) => (a === from && b === to) || (a === to && b === from));
+  if (removedIndex >= 0) { removed.splice(removedIndex, 1); writeRemovedLinks(removed); }
   setWirePicking(false);
   rebuildRouted();
   buildWireOverlays();
@@ -1070,6 +1181,10 @@ function removeCustomModule(id) {
   const module = byId[id];
   if (!module || !module.custom) return;
   if (wirePickFrom === id) setWirePicking(false);
+  if (selectedWireKey) {
+    const [a, b] = selectedWireKey.split(">");
+    if (a === id || b === id) selectWire(null);
+  }
   // Remove wires touching this module (and their saved port positions).
   const touched = links.filter(([a, b]) => a === id || b === id);
   for (let i = links.length - 1; i >= 0; i -= 1) {
@@ -1151,6 +1266,8 @@ async function layoutCopyText() {
       });
     }
   }
+  const removedLinks = readRemovedLinks();
+  if (removedLinks.length) layout.removedLinks = removedLinks;
   return JSON.stringify(layout, null, 2);
 }
 
@@ -1197,15 +1314,18 @@ async function layoutCopyText() {
   wireBtn.addEventListener("click", async () => {
     const positions = readPortStore();
     const customs = readCustomLinks();
-    if (!Object.keys(positions).length && !customs.length) {
+    const removed = readRemovedLinks();
+    if (!Object.keys(positions).length && !customs.length && !removed.length) {
       wireBtn.textContent = "No wire moves yet — drag a dot first";
       setTimeout(() => { wireBtn.textContent = "Copy wire positions"; }, 2500);
       return;
     }
     // Custom wires (added with "Add wire") are listed explicitly, so
     // Muse can recreate the links themselves, not just their ports.
+    // Deleted built-in wires are listed too, so Muse can drop them.
     const payload = { ...positions };
     if (customs.length) payload.customLinks = customs;
+    if (removed.length) payload.removedLinks = removed;
     const text = JSON.stringify(payload, null, 2);
     try { await navigator.clipboard.writeText(text); wireBtn.textContent = "Copied! Paste it to Muse"; }
     catch { window.prompt("Copy your wire positions and paste them to Muse:", text); wireBtn.textContent = "Copy wire positions"; return; }
@@ -1250,6 +1370,18 @@ async function layoutCopyText() {
   });
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && wirePicking) setWirePicking(false);
+    // Esc also drops a selected wire.
+    if (event.key === "Escape") selectWire(null);
+    // Backspace deletes the selected wire — Backspace only, not Delete.
+    // Never while typing in a title/body (contenteditable) or an input:
+    // a prompt() blocks key events while it is open, so no extra guard
+    // is needed for it. preventDefault stops the browser going back.
+    if (event.key === "Backspace" && selectedWireKey) {
+      const target = event.target;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      event.preventDefault();
+      deleteSelectedWire();
+    }
   });
   bar.append(copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, addModuleBtn, addWireBtn);
   document.body.append(bar);
@@ -1303,7 +1435,9 @@ function wirePath(link) {
 
 function redrawWires() {
   routed.forEach((link, index) => {
-    wires[index]?.setAttribute("d", wirePath(link));
+    const d = wirePath(link);
+    wires[index]?.setAttribute("d", d);
+    wireHitPaths[index]?.setAttribute("d", d);
   });
   for (const h of wireHandles) {
     const pos = portPos(h.link, h.end);
@@ -1378,6 +1512,16 @@ function zoomAt(clientX, nextScale) {
   clampX(span);
   applyView();
 }
+
+// Clicking empty canvas drops a selected wire. Clicks on a module or a
+// wire stop short of here: modules guard with closest(".node"), a wire
+// click stops propagation on its hit path, and port-dot clicks are
+// guarded below too.
+viewport.addEventListener("click", (event) => {
+  if (!selectedWireKey) return;
+  if (event.target.closest(".node, .wire-handle-hit, .wire-handle, .wire-hit")) return;
+  selectWire(null);
+});
 
 viewport.addEventListener(
   "wheel",
