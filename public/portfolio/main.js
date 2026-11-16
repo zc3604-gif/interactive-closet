@@ -1,8 +1,8 @@
 const modules = [
   {
     id: "artist",
-    x: -200,
-    y: 250,
+    x: -204,
+    y: 126,
     w: 240,
     h: 292,
     kind: "Artist information",
@@ -12,8 +12,8 @@ const modules = [
   },
   {
     id: "works",
-    x: 496,
-    y: 128,
+    x: 383,
+    y: 95,
     w: 240,
     h: 292,
     kind: "Digital art works",
@@ -23,8 +23,8 @@ const modules = [
   },
   {
     id: "3d",
-    x: 496,
-    y: 484,
+    x: 76,
+    y: 427,
     w: 240,
     h: 292,
     kind: "3D design",
@@ -32,10 +32,46 @@ const modules = [
     body: "Character and object design in Maya, Blender, ZBrush, and Fusion.",
     preview: previewForm,
   },
-  { id: "p5", x: 312, y: 0, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
-  { id: "vj", x: 312, y: 92, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
-  { id: "video", x: 312, y: 184, w: 112, h: 84, small: true, kind: "Fine art", preview: () => previewOp("film") },
+  { id: "p5", x: 164, y: 82, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
+  { id: "vj", x: 162, y: 185, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
+  { id: "video", x: 164, y: 288, w: 112, h: 84, small: true, kind: "Fine art", preview: () => previewOp("film") },
 ];
+const posKey = "portfolio-module-positions";
+const lockKey = "portfolio-layout-locked";
+let layoutLocked = true;
+try { layoutLocked = localStorage.getItem(lockKey) !== "0"; } catch {}
+
+function currentLayout() {
+  return Object.fromEntries(modules.map((m) => [m.id, { x: Math.round(m.x), y: Math.round(m.y) }]));
+}
+
+function readPosStore() {
+  try {
+    return JSON.parse(localStorage.getItem(posKey)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function writePosStore(moduleId, px, py) {
+  const store = readPosStore();
+  store[moduleId] = { x: px, y: py };
+  try {
+    localStorage.setItem(posKey, JSON.stringify(store));
+  } catch {}
+}
+
+// Restore dragged positions, so a layout the user arranged stays put.
+{
+  const saved = readPosStore();
+  for (const module of modules) {
+    const pos = saved[module.id];
+    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+      module.x = pos.x;
+      module.y = pos.y;
+    }
+  }
+}
 
 const links = [
   ["artist", "p5"],
@@ -517,7 +553,58 @@ for (const module of modules) {
     node.append(copy);
   }
   module.el = node;
+  // Drag a module: wires follow live, layout is saved, a tap still opens its page.
+  node.style.touchAction = "none";
+  node.style.cursor = "grab";
+  let dragState = null;
+  let justDragged = false;
+  node.addEventListener("pointerdown", (event) => {
+    if (layoutLocked) return;
+    if (event.button !== undefined && event.button !== 0) return;
+    if (event.target.closest("[contenteditable], .upload, .media, input, a")) return;
+    if (event.pointerType === "touch" && typeof touches !== "undefined" && touches.size >= 2) return;
+    const rect = viewport.getBoundingClientRect();
+    dragState = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startWorldX: (event.clientX - rect.left - x) / scale,
+      startWorldY: (event.clientY - rect.top - y) / scale,
+      startModuleX: module.x,
+      startModuleY: module.y,
+      moved: false,
+    };
+    try { node.setPointerCapture(event.pointerId); } catch {}
+    node.style.cursor = "grabbing";
+    event.preventDefault();
+  });
+  node.addEventListener("pointermove", (event) => {
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    const rect = viewport.getBoundingClientRect();
+    const worldX = (event.clientX - rect.left - x) / scale;
+    const worldY = (event.clientY - rect.top - y) / scale;
+    if (Math.abs(event.clientX - dragState.startClientX) > 4 || Math.abs(event.clientY - dragState.startClientY) > 4) dragState.moved = true;
+    if (!dragState.moved) return;
+    module.x = dragState.startModuleX + (worldX - dragState.startWorldX);
+    module.y = dragState.startModuleY + (worldY - dragState.startWorldY);
+    node.style.left = `${module.x}px`;
+    node.style.top = `${module.y}px`;
+    redrawWires();
+  });
+  const endDrag = (event) => {
+    if (!dragState || (event.pointerId !== undefined && event.pointerId !== dragState.pointerId)) return;
+    node.style.cursor = "grab";
+    if (dragState.moved) {
+      writePosStore(module.id, Math.round(module.x), Math.round(module.y));
+      justDragged = true;
+      setTimeout(() => { justDragged = false; }, 50);
+    }
+    dragState = null;
+  };
+  node.addEventListener("pointerup", endDrag);
+  node.addEventListener("pointercancel", endDrag);
   node.addEventListener("click", (event) => {
+    if (justDragged) return;
     if (event.target.closest("[contenteditable], .upload, .media, input")) return;
     const page = workPages[module.id];
     if (page) window.location.href = page;
@@ -526,6 +613,42 @@ for (const module of modules) {
   loadSavedMedia(module.id, preview).then(() => {
     if (module.id !== "p5" && module.id !== "vj" && module.id !== "video" && module.id !== "works" && module.id !== "3d") return loadMedia(module.id, preview);
   });
+}
+
+// Lock / copy layout toolbar: drag first, then lock, then paste the copied positions to Muse.
+{
+  const bar = document.createElement("div");
+  bar.style.cssText = "position:fixed;top:64px;right:12px;z-index:9999;display:flex;gap:8px;";
+  const copyBtn = document.createElement("button");
+  copyBtn.textContent = "Copy layout";
+  const lockBtn = document.createElement("button");
+  function refreshLockBtn() {
+    lockBtn.textContent = layoutLocked ? "Unlock layout" : "Lock layout";
+    for (const m of modules) if (m.el) m.el.style.cursor = layoutLocked ? "default" : "grab";
+  }
+  for (const b of [copyBtn, lockBtn]) {
+    b.style.cssText = "padding:8px 12px;border:1px solid #111;background:#fff;color:#111;font-size:13px;cursor:pointer;";
+  }
+  copyBtn.addEventListener("click", async () => {
+    const text = JSON.stringify(currentLayout(), null, 2);
+    try { await navigator.clipboard.writeText(text); copyBtn.textContent = "Copied! Paste it to Muse"; }
+    catch { window.prompt("Copy your layout and paste it to Muse:", text); copyBtn.textContent = "Copy layout"; return; }
+    setTimeout(() => { copyBtn.textContent = "Copy layout"; }, 2500);
+  });
+  lockBtn.addEventListener("click", async () => {
+    layoutLocked = !layoutLocked;
+    try { localStorage.setItem(lockKey, layoutLocked ? "1" : "0"); } catch {}
+    refreshLockBtn();
+    if (layoutLocked) {
+      const text = JSON.stringify(currentLayout(), null, 2);
+      try { await navigator.clipboard.writeText(text); lockBtn.textContent = "Locked - layout copied"; }
+      catch { lockBtn.textContent = "Locked"; }
+      setTimeout(refreshLockBtn, 2500);
+    }
+  });
+  bar.append(copyBtn, lockBtn);
+  document.body.append(bar);
+  refreshLockBtn();
 }
 
 let x = 0;
@@ -548,6 +671,12 @@ function wirePath(link) {
   const y2 = to.y + portTop(to, link.inIndex, inSlot[to.id]);
   const bend = Math.max(48, Math.abs(x2 - x1) * 0.45);
   return `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
+}
+
+function redrawWires() {
+  routed.forEach((link, index) => {
+    wires[index]?.setAttribute("d", wirePath(link));
+  });
 }
 
 function applyView() {
