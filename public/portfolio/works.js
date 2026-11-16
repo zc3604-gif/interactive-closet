@@ -83,12 +83,12 @@ function workTitle(file) {
 // Node-graph canvas (same vocabulary as the front page: #viewport, #world,
 // #axes, SVG #wires, .node modules).
 // ---------------------------------------------------------------------------
-const NODE_W = 160;
-const NODE_H = 120; // preview 88 + title row ~32
-const PREVIEW_MID = 44; // vertical centre of the preview area
-const COLS = 3;
-const COL_GAP = 200;
-const ROW_GAP = 220;
+const NODE_W = 120;
+const NODE_H = 92; // preview 64 + title row ~28
+const PREVIEW_MID = 32; // vertical centre of the preview area
+const COLS = 4;
+const COL_GAP = 150;
+const ROW_GAP = 170;
 
 document.body.classList.add("works-graph");
 
@@ -154,7 +154,7 @@ function wirePath(a, b) {
     const y1 = a.y + NODE_H;
     const x2 = b.x + NODE_W / 2;
     const y2 = b.y;
-    const bend = Math.max(48, Math.abs(y2 - y1) * 0.45);
+    const bend = Math.max(32, Math.abs(y2 - y1) * 0.45);
     return `M ${x1} ${y1} C ${x1} ${y1 + bend}, ${x2} ${y2 - bend}, ${x2} ${y2}`;
   }
   // Same row: right edge of one node to the left edge of the next.
@@ -162,7 +162,7 @@ function wirePath(a, b) {
   const y1 = a.y + PREVIEW_MID;
   const x2 = b.x;
   const y2 = b.y + PREVIEW_MID;
-  const bend = Math.max(48, Math.abs(x2 - x1) * 0.45);
+  const bend = Math.max(32, Math.abs(x2 - x1) * 0.45);
   return `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
 }
 
