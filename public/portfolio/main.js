@@ -123,14 +123,15 @@ function writePortStore(linkKey, end, frac) {
 function portFrac(node, link, end) {
   const stored = readPortStore()[link.from + ">" + link.to + ":" + end];
   if (Number.isFinite(stored)) return Math.min(1, Math.max(0, stored));
-  const band = node.small ? 52 : 132;
+  // Default keeps the old look: old portTop offset, now as a fraction
+  // of the FULL module height, so a dot can slide past the preview line.
   const index = end === "from" ? link.outIndex : link.inIndex;
   const total = end === "from" ? outSlot[link.from] : inSlot[link.to];
-  return portTop(node, index, total) / band;
+  return portTop(node, index, total) / node.h;
 }
 function portPos(link, end) {
   const node = byId[end === "from" ? link.from : link.to];
-  const band = node.small ? 52 : 132;
+  const band = node.h;
   return {
     x: end === "from" ? node.x + node.w : node.x,
     y: node.y + portFrac(node, link, end) * band,
@@ -153,13 +154,25 @@ for (const link of routed) {
 }
 
 // Small dots at each wire end — grab one and drag it up/down the module edge.
+// They live in their own overlay svg (appended to #world after the nodes,
+// at the bottom of this file), so they sit ABOVE the modules instead of
+// underneath them in #wires, where the module would swallow the grab.
+const handlesSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+handlesSvg.setAttribute("id", "wire-handles");
+handlesSvg.setAttribute("width", "1960");
+handlesSvg.setAttribute("height", "980");
+handlesSvg.style.position = "absolute";
+handlesSvg.style.top = "0";
+handlesSvg.style.left = "0";
+handlesSvg.style.overflow = "visible";
+handlesSvg.style.pointerEvents = "none";
 const wireHandles = [];
 for (let li = 0; li < routed.length; li++) {
   const link = routed[li];
   for (const end of ["from", "to"]) {
     const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     dot.setAttribute("class", "wire-handle");
-    dot.setAttribute("r", "6");
+    dot.setAttribute("r", "8");
     dot.setAttribute("fill", "#fff");
     dot.setAttribute("stroke", "#111");
     dot.setAttribute("stroke-width", "1.2");
@@ -174,7 +187,7 @@ for (let li = 0; li < routed.length; li++) {
         const rect = viewport.getBoundingClientRect();
         const worldY = (ev.clientY - rect.top - y) / scale;
         const node = byId[end === "from" ? link.from : link.to];
-        const band = node.small ? 52 : 132;
+        const band = node.h;
         const frac = Math.min(1, Math.max(0, (worldY - node.y) / band));
         // live preview: stash in memory, save on release
         const store = readPortStore();
@@ -192,7 +205,7 @@ for (let li = 0; li < routed.length; li++) {
       dot.addEventListener("pointerup", onUp);
       dot.addEventListener("pointercancel", onUp);
     });
-    svg.append(dot);
+    handlesSvg.append(dot);
     wireHandles.push({ link, end, dot });
   }
 }
@@ -961,6 +974,7 @@ if (backdrop && !backdrop.complete) {
     frameNetwork();
   });
 }
+world.append(handlesSvg);
 frameNetwork();
 restoreSavedView();
 redrawWires();
