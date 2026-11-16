@@ -36,6 +36,35 @@ const modules = [
   { id: "vj", x: 312, y: 92, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
   { id: "video", x: 312, y: 184, w: 112, h: 84, small: true, kind: "Fine art", preview: () => previewOp("film") },
 ];
+const posKey = "portfolio-module-positions";
+
+function readPosStore() {
+  try {
+    return JSON.parse(localStorage.getItem(posKey)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function writePosStore(moduleId, px, py) {
+  const store = readPosStore();
+  store[moduleId] = { x: px, y: py };
+  try {
+    localStorage.setItem(posKey, JSON.stringify(store));
+  } catch {}
+}
+
+// Restore dragged positions, so a layout the user arranged stays put.
+{
+  const saved = readPosStore();
+  for (const module of modules) {
+    const pos = saved[module.id];
+    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+      module.x = pos.x;
+      module.y = pos.y;
+    }
+  }
+}
 
 const links = [
   ["artist", "p5"],
@@ -517,7 +546,57 @@ for (const module of modules) {
     node.append(copy);
   }
   module.el = node;
+  // Drag a module: wires follow live, layout is saved, a tap still opens its page.
+  node.style.touchAction = "none";
+  node.style.cursor = "grab";
+  let dragState = null;
+  let justDragged = false;
+  node.addEventListener("pointerdown", (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    if (event.target.closest("[contenteditable], .upload, .media, input, a")) return;
+    if (event.pointerType === "touch" && typeof touches !== "undefined" && touches.size >= 2) return;
+    const rect = viewport.getBoundingClientRect();
+    dragState = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startWorldX: (event.clientX - rect.left - x) / scale,
+      startWorldY: (event.clientY - rect.top - y) / scale,
+      startModuleX: module.x,
+      startModuleY: module.y,
+      moved: false,
+    };
+    try { node.setPointerCapture(event.pointerId); } catch {}
+    node.style.cursor = "grabbing";
+    event.preventDefault();
+  });
+  node.addEventListener("pointermove", (event) => {
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    const rect = viewport.getBoundingClientRect();
+    const worldX = (event.clientX - rect.left - x) / scale;
+    const worldY = (event.clientY - rect.top - y) / scale;
+    if (Math.abs(event.clientX - dragState.startClientX) > 4 || Math.abs(event.clientY - dragState.startClientY) > 4) dragState.moved = true;
+    if (!dragState.moved) return;
+    module.x = dragState.startModuleX + (worldX - dragState.startWorldX);
+    module.y = dragState.startModuleY + (worldY - dragState.startWorldY);
+    node.style.left = `${module.x}px`;
+    node.style.top = `${module.y}px`;
+    redrawWires();
+  });
+  const endDrag = (event) => {
+    if (!dragState || (event.pointerId !== undefined && event.pointerId !== dragState.pointerId)) return;
+    node.style.cursor = "grab";
+    if (dragState.moved) {
+      writePosStore(module.id, Math.round(module.x), Math.round(module.y));
+      justDragged = true;
+      setTimeout(() => { justDragged = false; }, 50);
+    }
+    dragState = null;
+  };
+  node.addEventListener("pointerup", endDrag);
+  node.addEventListener("pointercancel", endDrag);
   node.addEventListener("click", (event) => {
+    if (justDragged) return;
     if (event.target.closest("[contenteditable], .upload, .media, input")) return;
     const page = workPages[module.id];
     if (page) window.location.href = page;
@@ -548,6 +627,12 @@ function wirePath(link) {
   const y2 = to.y + portTop(to, link.inIndex, inSlot[to.id]);
   const bend = Math.max(48, Math.abs(x2 - x1) * 0.45);
   return `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
+}
+
+function redrawWires() {
+  routed.forEach((link, index) => {
+    wires[index]?.setAttribute("d", wirePath(link));
+  });
 }
 
 function applyView() {
