@@ -737,6 +737,8 @@ for (const module of modules) {
   bar.style.cssText = "position:fixed;top:64px;right:12px;z-index:9999;display:flex;gap:8px;";
   const copyBtn = document.createElement("button");
   copyBtn.textContent = "Copy layout";
+  const wireBtn = document.createElement("button");
+  wireBtn.textContent = "Copy wire positions";
   const lockBtn = document.createElement("button");
   const viewBtn = document.createElement("button");
   viewBtn.type = "button";
@@ -750,7 +752,7 @@ for (const module of modules) {
     viewBtn.style.background = viewLocked ? "#111" : "#fff";
     viewBtn.style.color = viewLocked ? "#fff" : "#111";
   }
-  for (const b of [copyBtn, lockBtn, viewBtn]) {
+  for (const b of [copyBtn, wireBtn, lockBtn, viewBtn]) {
     b.style.cssText = "padding:8px 12px;border:1px solid #111;background:#fff;color:#111;font-size:13px;cursor:pointer;";
   }
   copyBtn.addEventListener("click", async () => {
@@ -758,6 +760,18 @@ for (const module of modules) {
     try { await navigator.clipboard.writeText(text); copyBtn.textContent = "Copied! Paste it to Muse"; }
     catch { window.prompt("Copy your layout and paste it to Muse:", text); copyBtn.textContent = "Copy layout"; return; }
     setTimeout(() => { copyBtn.textContent = "Copy layout"; }, 2500);
+  });
+  wireBtn.addEventListener("click", async () => {
+    const positions = readPortStore();
+    if (!Object.keys(positions).length) {
+      wireBtn.textContent = "No wire moves yet — drag a dot first";
+      setTimeout(() => { wireBtn.textContent = "Copy wire positions"; }, 2500);
+      return;
+    }
+    const text = JSON.stringify(positions, null, 2);
+    try { await navigator.clipboard.writeText(text); wireBtn.textContent = "Copied! Paste it to Muse"; }
+    catch { window.prompt("Copy your wire positions and paste them to Muse:", text); wireBtn.textContent = "Copy wire positions"; return; }
+    setTimeout(() => { wireBtn.textContent = "Copy wire positions"; }, 2500);
   });
   lockBtn.addEventListener("click", async () => {
     layoutLocked = !layoutLocked;
@@ -776,7 +790,7 @@ for (const module of modules) {
     if (viewLocked) saveCurrentView();
     refreshViewBtn();
   });
-  bar.append(copyBtn, lockBtn, viewBtn);
+  bar.append(copyBtn, wireBtn, lockBtn, viewBtn);
   document.body.append(bar);
   refreshLockBtn();
   refreshViewBtn();
