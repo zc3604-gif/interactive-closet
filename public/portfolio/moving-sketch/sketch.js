@@ -43,22 +43,24 @@ function draw() {
 
   const lines = art.split("\n");
   const columns = Math.max(...lines.map(line => line.length));
-  // Tile framing (test branch, 2026-11-16): zoom in a little vs the
-  // editor original (padding 20 -> 10 -> 6) and shift the art up (-4px) and
-  // left (-6px) per the user, so the whole ASCII picture fills the
-  // 240x132 tile. Font grows 2.67px -> ~3.25px -> ~3.48px (+7% this step).
+  // Tile framing (test branch, 2026-11-16): v56 fills the whole
+  // 240x132 tile edge-to-edge. The user said a tiny edge crop is OK.
   // Centre is UNCHANGED at (114, 62): the x/y formulas centre the art then
   // apply the same -6/-4 offsets, so scaling up only grows the art around
-  // that centre. Art stays fully inside the canvas at cellRatio 0.55-0.65
-  // (art 191-226 x 120, x >= 0.96, y = 2, right <= 227, bottom = 122).
-  const padding = 6;
-
-  // Fit the artwork inside the canvas.
+  // that centre. fontSize is now the LARGER of the two "cover" sizes, so
+  // the art is at least 252px wide and 140px tall — 12px wider / 8px taller
+  // than the tile, which covers the -6/-4 centre offset on all four sides,
+  // so no white margins remain. At cellRatio 0.60 (Chrome monospace):
+  // font ~4.20px, art 252 x 145, x = -12, y = -10.4, right = 240,
+  // bottom = 134.4 — crop L 12px, T 10.4px, R 0px, B 2.4px (edge dots only).
+  // At cellRatio 0.55-0.65 the crop stays L 12-17.9px, T 8-17px, R 0-5.9px,
+  // B 0-9px, and every edge is covered. Previous steps: padding 20 -> 10
+  // (v54) -> 6 (v55, font ~3.48px, art 191-226 x 120, fully inside).
   textSize(20);
   const cellRatio = textWidth("M") / 20;
-  const fontSize = Math.min(
-    (width - padding * 2) / (columns * cellRatio),
-    (height - padding * 2) / (lines.length * 1.15)
+  const fontSize = Math.max(
+    (width + 12) / (columns * cellRatio),
+    (height + 8) / (lines.length * 1.15)
   );
 
   textSize(fontSize);
