@@ -1,8 +1,8 @@
 const modules = [
   {
     id: "artist",
-    x: -200,
-    y: 250,
+    x: -204,
+    y: 126,
     w: 240,
     h: 292,
     kind: "Artist information",
@@ -12,8 +12,8 @@ const modules = [
   },
   {
     id: "works",
-    x: 496,
-    y: 128,
+    x: 383,
+    y: 95,
     w: 240,
     h: 292,
     kind: "Digital art works",
@@ -23,8 +23,8 @@ const modules = [
   },
   {
     id: "3d",
-    x: 496,
-    y: 484,
+    x: 76,
+    y: 427,
     w: 240,
     h: 292,
     kind: "3D design",
@@ -32,14 +32,14 @@ const modules = [
     body: "Character and object design in Maya, Blender, ZBrush, and Fusion.",
     preview: previewForm,
   },
-  { id: "p5", x: 312, y: 0, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
-  { id: "vj", x: 312, y: 92, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
-  { id: "video", x: 312, y: 184, w: 112, h: 84, small: true, kind: "Fine art", preview: () => previewOp("film") },
+  { id: "p5", x: 164, y: 82, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
+  { id: "vj", x: 162, y: 185, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
+  { id: "video", x: 164, y: 288, w: 112, h: 84, small: true, kind: "Fine art", preview: () => previewOp("film") },
 ];
 const posKey = "portfolio-module-positions";
 const lockKey = "portfolio-layout-locked";
-let layoutLocked = false;
-try { layoutLocked = localStorage.getItem(lockKey) === "1"; } catch {}
+let layoutLocked = true;
+try { layoutLocked = localStorage.getItem(lockKey) !== "0"; } catch {}
 
 function currentLayout() {
   return Object.fromEntries(modules.map((m) => [m.id, { x: Math.round(m.x), y: Math.round(m.y) }]));
