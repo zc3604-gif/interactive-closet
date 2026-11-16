@@ -107,6 +107,36 @@ const routed = links.map(([from, to]) => {
   return { from, to, outIndex, inIndex };
 });
 
+// Draggable wire ends: each wire end has a saved position (fraction 0..1
+// down the module's side band) in localStorage, so the user can grab the
+// little dot at the end of a wire and slide it up/down the module edge.
+// Defaults match the old auto-assigned portTop() positions.
+const portKey = "portfolio-wire-ports";
+function readPortStore() {
+  try { return JSON.parse(localStorage.getItem(portKey)) || {}; } catch { return {}; }
+}
+function writePortStore(linkKey, end, frac) {
+  const store = readPortStore();
+  store[linkKey + ":" + end] = frac;
+  try { localStorage.setItem(portKey, JSON.stringify(store)); } catch {}
+}
+function portFrac(node, link, end) {
+  const stored = readPortStore()[link.from + ">" + link.to + ":" + end];
+  if (Number.isFinite(stored)) return Math.min(1, Math.max(0, stored));
+  const band = node.small ? 52 : 132;
+  const index = end === "from" ? link.outIndex : link.inIndex;
+  const total = end === "from" ? outSlot[link.from] : inSlot[link.to];
+  return portTop(node, index, total) / band;
+}
+function portPos(link, end) {
+  const node = byId[end === "from" ? link.from : link.to];
+  const band = node.small ? 52 : 132;
+  return {
+    x: end === "from" ? node.x + node.w : node.x,
+    y: node.y + portFrac(node, link, end) * band,
+  };
+}
+
 const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 svg.setAttribute("id", "wires");
 svg.setAttribute("width", "1960");
@@ -120,6 +150,51 @@ for (const link of routed) {
   path.setAttribute("d", wirePath(link));
   svg.append(path);
   wires.push(path);
+}
+
+// Small dots at each wire end — grab one and drag it up/down the module edge.
+const wireHandles = [];
+for (let li = 0; li < routed.length; li++) {
+  const link = routed[li];
+  for (const end of ["from", "to"]) {
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("class", "wire-handle");
+    dot.setAttribute("r", "6");
+    dot.setAttribute("fill", "#fff");
+    dot.setAttribute("stroke", "#111");
+    dot.setAttribute("stroke-width", "1.2");
+    dot.style.cursor = "grab";
+    dot.style.pointerEvents = "all";
+    dot.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+      dot.setPointerCapture(event.pointerId);
+      dot.style.cursor = "grabbing";
+      const onMove = (ev) => {
+        const rect = viewport.getBoundingClientRect();
+        const worldY = (ev.clientY - rect.top - y) / scale;
+        const node = byId[end === "from" ? link.from : link.to];
+        const band = node.small ? 52 : 132;
+        const frac = Math.min(1, Math.max(0, (worldY - node.y) / band));
+        // live preview: stash in memory, save on release
+        const store = readPortStore();
+        store[link.from + ">" + link.to + ":" + end] = frac;
+        try { localStorage.setItem(portKey, JSON.stringify(store)); } catch {}
+        redrawWires();
+      };
+      const onUp = () => {
+        dot.style.cursor = "grab";
+        dot.removeEventListener("pointermove", onMove);
+        dot.removeEventListener("pointerup", onUp);
+        dot.removeEventListener("pointercancel", onUp);
+      };
+      dot.addEventListener("pointermove", onMove);
+      dot.addEventListener("pointerup", onUp);
+      dot.addEventListener("pointercancel", onUp);
+    });
+    svg.append(dot);
+    wireHandles.push({ link, end, dot });
+  }
 }
 
 const textKey = "portfolio-module-text";
@@ -708,12 +783,12 @@ function portTop(node, index, total) {
 }
 
 function wirePath(link) {
-  const from = byId[link.from];
-  const to = byId[link.to];
-  const x1 = from.x + from.w;
-  const y1 = from.y + portTop(from, link.outIndex, outSlot[from.id]);
-  const x2 = to.x;
-  const y2 = to.y + portTop(to, link.inIndex, inSlot[to.id]);
+  const p1 = portPos(link, "from");
+  const p2 = portPos(link, "to");
+  const x1 = p1.x;
+  const y1 = p1.y;
+  const x2 = p2.x;
+  const y2 = p2.y;
   const bend = Math.max(48, Math.abs(x2 - x1) * 0.45);
   return `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
 }
@@ -722,6 +797,11 @@ function redrawWires() {
   routed.forEach((link, index) => {
     wires[index]?.setAttribute("d", wirePath(link));
   });
+  for (const h of wireHandles) {
+    const pos = portPos(h.link, h.end);
+    h.dot.setAttribute("cx", pos.x);
+    h.dot.setAttribute("cy", pos.y);
+  }
 }
 
 function applyView() {
@@ -883,6 +963,7 @@ if (backdrop && !backdrop.complete) {
 }
 frameNetwork();
 restoreSavedView();
+redrawWires();
 drawAxisNumbers();
 
 function drawAxisNumbers() {
