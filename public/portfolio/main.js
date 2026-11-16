@@ -24,7 +24,7 @@ const modules = [
     h: 292,
     kind: "Artist information",
     title: "f(x)",
-    body: "Interactive Media Arts & Human-Computer Interaction NYC BasedVideo arts, live coding, 3D, post-production, Interfaces designSoftWares: Adobe AE PS\u00a0\u00a0Autodeswk Maya Fusion, Blender, Zbrush, Three.js TouchDesigner, HydraSynth, Resolumn, Module8, MadmapperContact information:email:zc3604@nyu.edunumber:+1(949)620-7911",
+    body: "Interactive Media Arts & Human-Computer Interaction NYC BasedVideo arts, live coding, 3D, post-production, \nSoftWares: Adobe AE PS  Autodeswk Maya Fusion, Zbrush,  TouchDesigner, HydraSynth, Resolumn\n\nContact:email:zc3604@nyu.edunumber:+1(949)620-7911",
     preview: previewArtist,
   },
   {

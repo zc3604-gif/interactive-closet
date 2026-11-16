@@ -270,6 +270,7 @@ p {
   color: #111;
   font-size: 13.5px;
   line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 body.works-page {
