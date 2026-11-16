@@ -186,6 +186,8 @@ for (const link of routed) {
 // They live in their own overlay svg (appended to #world after the nodes,
 // at the bottom of this file), so they sit ABOVE the modules instead of
 // underneath them in #wires, where the module would swallow the grab.
+// The visible dot is r=5; each has an invisible r=11 grab circle under it,
+// so the dots look smaller but are just as easy to grab as before.
 const handlesSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 handlesSvg.setAttribute("id", "wire-handles");
 handlesSvg.setAttribute("width", "1960");
@@ -199,20 +201,26 @@ const wireHandles = [];
 for (let li = 0; li < routed.length; li++) {
   const link = routed[li];
   for (const end of ["from", "to"]) {
+    // Invisible grab area (r=11) under a smaller visible dot (r=5).
+    const hit = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    hit.setAttribute("class", "wire-handle-hit");
+    hit.setAttribute("r", "11");
+    hit.setAttribute("fill", "transparent");
+    hit.style.cursor = "grab";
+    hit.style.pointerEvents = "all";
     const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     dot.setAttribute("class", "wire-handle");
-    dot.setAttribute("r", "8");
+    dot.setAttribute("r", "5");
     dot.setAttribute("fill", "#fff");
     dot.setAttribute("stroke", "#111");
     dot.setAttribute("stroke-width", "1.2");
-    dot.style.cursor = "grab";
-    dot.style.pointerEvents = "all";
-    dot.addEventListener("pointerdown", (event) => {
+    dot.style.pointerEvents = "none";
+    hit.addEventListener("pointerdown", (event) => {
       event.stopPropagation();
       event.preventDefault();
       if (wiresLocked) return;
-      dot.setPointerCapture(event.pointerId);
-      dot.style.cursor = "grabbing";
+      hit.setPointerCapture(event.pointerId);
+      hit.style.cursor = "grabbing";
       const onMove = (ev) => {
         const rect = viewport.getBoundingClientRect();
         const worldY = (ev.clientY - rect.top - y) / scale;
@@ -222,22 +230,26 @@ for (let li = 0; li < routed.length; li++) {
         redrawWires();
       };
       const onUp = () => {
-        dot.style.cursor = "grab";
-        dot.removeEventListener("pointermove", onMove);
-        dot.removeEventListener("pointerup", onUp);
-        dot.removeEventListener("pointercancel", onUp);
+        hit.style.cursor = "grab";
+        hit.removeEventListener("pointermove", onMove);
+        hit.removeEventListener("pointerup", onUp);
+        hit.removeEventListener("pointercancel", onUp);
       };
-      dot.addEventListener("pointermove", onMove);
-      dot.addEventListener("pointerup", onUp);
-      dot.addEventListener("pointercancel", onUp);
+      hit.addEventListener("pointermove", onMove);
+      hit.addEventListener("pointerup", onUp);
+      hit.addEventListener("pointercancel", onUp);
     });
+    handlesSvg.append(hit);
     handlesSvg.append(dot);
-    wireHandles.push({ link, end, dot });
+    wireHandles.push({ link, end, dot, hit });
   }
 }
 
 function refreshWireDots() {
-  for (const h of wireHandles) h.dot.style.cursor = wiresLocked ? "default" : "grab";
+  for (const h of wireHandles) {
+    h.dot.style.cursor = wiresLocked ? "default" : "grab";
+    h.hit.style.cursor = wiresLocked ? "default" : "grab";
+  }
 }
 
 const textKey = "portfolio-module-text";
@@ -921,6 +933,8 @@ function redrawWires() {
     const pos = portPos(h.link, h.end);
     h.dot.setAttribute("cx", pos.x);
     h.dot.setAttribute("cy", pos.y);
+    h.hit.setAttribute("cx", pos.x);
+    h.hit.setAttribute("cy", pos.y);
   }
 }
 
