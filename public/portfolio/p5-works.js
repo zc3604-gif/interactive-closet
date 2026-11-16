@@ -1,5 +1,6 @@
 // Works pages as a TouchDesigner-style node graph, like the front page.
-// Each uploaded work is a module, wired to the next one, on a canvas you can
+// Each uploaded work is a module, joined by ONE single line that runs through
+// a small port on the top edge of every module, on a canvas you can
 // pan (drag the background), zoom (scroll / pinch) and rearrange (drag a node).
 // Data behaviour is unchanged from the grid version of p5-works.js: local
 // IndexedDB uploads only (store "p5"), newest first. No saved catalog.
@@ -44,7 +45,6 @@ function workTitle(file) {
 // ---------------------------------------------------------------------------
 const NODE_W = 120;
 const NODE_H = 92; // preview 64 + title row ~28
-const PREVIEW_MID = 32; // vertical centre of the preview area
 const COLS = 4;
 const COL_GAP = 150;
 const ROW_GAP = 170;
@@ -69,6 +69,13 @@ svg.setAttribute("id", "wires");
 svg.setAttribute("width", "1960");
 svg.setAttribute("height", "980");
 world.append(svg);
+
+// One single line for the whole page: it runs through a small port on the
+// top edge of every module, in chain order. No per-pair wires, no elbows.
+const singleWire = document.createElementNS("http://www.w3.org/2000/svg", "path");
+singleWire.setAttribute("class", "wire single-wire");
+singleWire.setAttribute("d", "");
+svg.append(singleWire);
 
 // Dragged positions, per works page. A work that has never been dragged gets
 // the next free slot in the chain, so new uploads never shift or overlap
@@ -99,36 +106,30 @@ function chainPos(slot) {
 }
 
 let nodes = []; // { work, el, x, y }
-let wirePaths = [];
 let emptyEl = null;
 
 function currentLayout() {
   return Object.fromEntries(nodes.map((n) => [n.work.id, { x: Math.round(n.x), y: Math.round(n.y) }]));
 }
 
-function wirePath(a, b) {
-  if (b.y !== a.y) {
-    // Next row: bottom edge of one node to the top edge of the next.
-    const x1 = a.x + NODE_W / 2;
-    const y1 = a.y + NODE_H;
-    const x2 = b.x + NODE_W / 2;
-    const y2 = b.y;
-    const bend = Math.max(32, Math.abs(y2 - y1) * 0.45);
-    return `M ${x1} ${y1} C ${x1} ${y1 + bend}, ${x2} ${y2 - bend}, ${x2} ${y2}`;
-  }
-  // Same row: right edge of one node to the left edge of the next.
-  const x1 = a.x + NODE_W;
-  const y1 = a.y + PREVIEW_MID;
-  const x2 = b.x;
-  const y2 = b.y + PREVIEW_MID;
-  const bend = Math.max(32, Math.abs(x2 - x1) * 0.45);
-  return `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
+function topPort(n) {
+  return { x: n.x + NODE_W / 2, y: n.y };
 }
 
 function redrawWires() {
-  for (let i = 0; i + 1 < nodes.length; i += 1) {
-    wirePaths[i]?.setAttribute("d", wirePath(nodes[i], nodes[i + 1]));
+  // One continuous straight line through every module's top port, in order.
+  // No elbows, no wrap-around routing — the line simply goes port to port.
+  if (!nodes.length) {
+    singleWire.setAttribute("d", "");
+    return;
   }
+  const d = nodes
+    .map((n, i) => {
+      const p = topPort(n);
+      return `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`;
+    })
+    .join(" ");
+  singleWire.setAttribute("d", d);
 }
 
 // --- view: pan / zoom -------------------------------------------------------
@@ -431,7 +432,6 @@ function render(works) {
   world.replaceChildren();
   world.append(svg);
   nodes = [];
-  wirePaths = [];
   emptyEl = null;
   if (!works.length) {
     emptyEl = document.createElement("p");
@@ -440,6 +440,7 @@ function render(works) {
     emptyEl.style.left = "0px";
     emptyEl.style.top = "0px";
     world.append(emptyEl);
+    redrawWires();
     frameNetwork();
     drawAxisNumbers();
     return;
@@ -509,6 +510,11 @@ function render(works) {
     });
     meta.append(title, remove);
     node.append(preview, meta);
+    // One port dot on the top edge — the single line runs through it.
+    const port = document.createElement("span");
+    port.className = "port";
+    port.setAttribute("aria-hidden", "true");
+    node.append(port);
     const entry = { work, el: node, x: pos.x, y: pos.y };
     nodes.push(entry);
     // Drag a node: wires follow live, layout is saved; dragging starts on the
@@ -562,14 +568,7 @@ function render(works) {
     node.addEventListener("pointercancel", endDrag);
     world.append(node);
   }
-  // Wires: each work wired to the next one, newest first.
-  for (let i = 0; i + 1 < nodes.length; i += 1) {
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("class", "wire");
-    path.setAttribute("d", wirePath(nodes[i], nodes[i + 1]));
-    svg.append(path);
-    wirePaths.push(path);
-  }
+  // One single line through every module's top port, in chain order.
   redrawWires();
   frameNetwork();
   drawAxisNumbers();
