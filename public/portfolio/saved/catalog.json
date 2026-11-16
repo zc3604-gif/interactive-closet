@@ -58,7 +58,29 @@
       }
     ],
     "vj": [],
-    "video": [],
+    "video": [
+      {
+        "id": "c4a70cf2-6a45-466d-9fc7-e34b6a4b5333",
+        "title": "Doll with bunny",
+        "type": "image/jpeg",
+        "created": 1794817483942,
+        "file": "saved/video/c4a70cf2-6a45-466d-9fc7-e34b6a4b5333.jpg"
+      },
+      {
+        "id": "7207a2ee-8000-450c-bbb1-30776abeeac3",
+        "title": "Closet",
+        "type": "image/jpeg",
+        "created": 1794817482942,
+        "file": "saved/video/7207a2ee-8000-450c-bbb1-30776abeeac3.jpg"
+      },
+      {
+        "id": "548d8537-5dd1-41c7-ba98-4a2295b2d4d4",
+        "title": "Mannequins",
+        "type": "image/jpeg",
+        "created": 1794817481942,
+        "file": "saved/video/548d8537-5dd1-41c7-ba98-4a2295b2d4d4.jpg"
+      }
+    ],
     "moving": []
   }
 }
