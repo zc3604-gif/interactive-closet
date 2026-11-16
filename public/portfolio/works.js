@@ -140,14 +140,13 @@ const DEFAULT_POSITIONS = {
 };
 const storeDefaults = DEFAULT_POSITIONS[storeName] || {};
 
-// Stores with a layout saved in the repo start locked (like the front page
-// after the user locked it), unless the user explicitly unlocked in this
-// browser. Stores with no saved default start unlocked.
-let layoutLocked = Object.keys(storeDefaults).length > 0;
+// Dragging starts unlocked for every store (including Models, even though
+// it has a saved default layout), so the user can keep adjusting positions.
+// It only starts locked if the user locked it in this browser before.
+let layoutLocked = false;
 try {
   const lockState = localStorage.getItem(lockKey);
   if (lockState === "1") layoutLocked = true;
-  else if (lockState === "0") layoutLocked = false;
 } catch {}
 
 function readPosStore() {
