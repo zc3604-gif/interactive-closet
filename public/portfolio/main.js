@@ -107,6 +107,60 @@ const routed = links.map(([from, to]) => {
   return { from, to, outIndex, inIndex };
 });
 
+// Draggable wire ends: each wire end has a saved position (pixels down
+// from the top of its module) in localStorage, so the user can grab the
+// little dot at the end of a wire and slide it up/down the module edge.
+// The range is the module's REAL rendered height (module.el.offsetHeight),
+// not the 292px in the data — the artist tile's long body text makes it
+// render ~400px tall, which is why a dot clamped to 292px stopped short
+// of the tile's real bottom edge, inside the text.
+// Positions saved by the earlier test versions were fractions of the
+// 132px/52px preview strip, so they are migrated once to pixels on load.
+const portKey = "portfolio-wire-ports-v2";
+const oldPortKey = "portfolio-wire-ports";
+function readPortStore() {
+  try { return JSON.parse(localStorage.getItem(portKey)) || {}; } catch { return {}; }
+}
+function writePortStore(linkKey, end, px) {
+  const store = readPortStore();
+  store[linkKey + ":" + end] = px;
+  try { localStorage.setItem(portKey, JSON.stringify(store)); } catch {}
+}
+(function migratePortStore() {
+  try {
+    if (localStorage.getItem(portKey)) return;
+    const old = JSON.parse(localStorage.getItem(oldPortKey) || "{}");
+    const next = {};
+    for (const [k, frac] of Object.entries(old)) {
+      if (!Number.isFinite(frac)) continue;
+      const [pair, end] = k.split(":");
+      const [from, to] = pair.split(">");
+      const node = byId[end === "from" ? from : to];
+      if (!node) continue;
+      // Old values were fractions of the preview strip (132px large / 52px small).
+      next[k] = Math.round(frac * (node.small ? 52 : 132));
+    }
+    if (Object.keys(next).length) localStorage.setItem(portKey, JSON.stringify(next));
+    localStorage.removeItem(oldPortKey);
+  } catch {}
+})();
+function renderedH(node) {
+  return node.el && node.el.offsetHeight ? node.el.offsetHeight : node.h;
+}
+function portOffset(node, link, end) {
+  const stored = readPortStore()[link.from + ">" + link.to + ":" + end];
+  if (Number.isFinite(stored)) return Math.min(renderedH(node), Math.max(0, stored));
+  // Default keeps the old look: the old auto-assigned portTop offset.
+  return portTop(node, end === "from" ? link.outIndex : link.inIndex, end === "from" ? outSlot[link.from] : inSlot[link.to]);
+}
+function portPos(link, end) {
+  const node = byId[end === "from" ? link.from : link.to];
+  return {
+    x: end === "from" ? node.x + node.w : node.x,
+    y: node.y + portOffset(node, link, end),
+  };
+}
+
 const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 svg.setAttribute("id", "wires");
 svg.setAttribute("width", "1960");
@@ -120,6 +174,59 @@ for (const link of routed) {
   path.setAttribute("d", wirePath(link));
   svg.append(path);
   wires.push(path);
+}
+
+// Small dots at each wire end — grab one and drag it up/down the module edge.
+// They live in their own overlay svg (appended to #world after the nodes,
+// at the bottom of this file), so they sit ABOVE the modules instead of
+// underneath them in #wires, where the module would swallow the grab.
+const handlesSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+handlesSvg.setAttribute("id", "wire-handles");
+handlesSvg.setAttribute("width", "1960");
+handlesSvg.setAttribute("height", "980");
+handlesSvg.style.position = "absolute";
+handlesSvg.style.top = "0";
+handlesSvg.style.left = "0";
+handlesSvg.style.overflow = "visible";
+handlesSvg.style.pointerEvents = "none";
+const wireHandles = [];
+for (let li = 0; li < routed.length; li++) {
+  const link = routed[li];
+  for (const end of ["from", "to"]) {
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("class", "wire-handle");
+    dot.setAttribute("r", "8");
+    dot.setAttribute("fill", "#fff");
+    dot.setAttribute("stroke", "#111");
+    dot.setAttribute("stroke-width", "1.2");
+    dot.style.cursor = "grab";
+    dot.style.pointerEvents = "all";
+    dot.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+      dot.setPointerCapture(event.pointerId);
+      dot.style.cursor = "grabbing";
+      const onMove = (ev) => {
+        const rect = viewport.getBoundingClientRect();
+        const worldY = (ev.clientY - rect.top - y) / scale;
+        const node = byId[end === "from" ? link.from : link.to];
+        const px = Math.min(renderedH(node), Math.max(0, worldY - node.y));
+        writePortStore(link.from + ">" + link.to, end, Math.round(px));
+        redrawWires();
+      };
+      const onUp = () => {
+        dot.style.cursor = "grab";
+        dot.removeEventListener("pointermove", onMove);
+        dot.removeEventListener("pointerup", onUp);
+        dot.removeEventListener("pointercancel", onUp);
+      };
+      dot.addEventListener("pointermove", onMove);
+      dot.addEventListener("pointerup", onUp);
+      dot.addEventListener("pointercancel", onUp);
+    });
+    handlesSvg.append(dot);
+    wireHandles.push({ link, end, dot });
+  }
 }
 
 const textKey = "portfolio-module-text";
@@ -630,6 +737,8 @@ for (const module of modules) {
   bar.style.cssText = "position:fixed;top:64px;right:12px;z-index:9999;display:flex;gap:8px;";
   const copyBtn = document.createElement("button");
   copyBtn.textContent = "Copy layout";
+  const wireBtn = document.createElement("button");
+  wireBtn.textContent = "Copy wire positions";
   const lockBtn = document.createElement("button");
   const viewBtn = document.createElement("button");
   viewBtn.type = "button";
@@ -643,7 +752,7 @@ for (const module of modules) {
     viewBtn.style.background = viewLocked ? "#111" : "#fff";
     viewBtn.style.color = viewLocked ? "#fff" : "#111";
   }
-  for (const b of [copyBtn, lockBtn, viewBtn]) {
+  for (const b of [copyBtn, wireBtn, lockBtn, viewBtn]) {
     b.style.cssText = "padding:8px 12px;border:1px solid #111;background:#fff;color:#111;font-size:13px;cursor:pointer;";
   }
   copyBtn.addEventListener("click", async () => {
@@ -651,6 +760,18 @@ for (const module of modules) {
     try { await navigator.clipboard.writeText(text); copyBtn.textContent = "Copied! Paste it to Muse"; }
     catch { window.prompt("Copy your layout and paste it to Muse:", text); copyBtn.textContent = "Copy layout"; return; }
     setTimeout(() => { copyBtn.textContent = "Copy layout"; }, 2500);
+  });
+  wireBtn.addEventListener("click", async () => {
+    const positions = readPortStore();
+    if (!Object.keys(positions).length) {
+      wireBtn.textContent = "No wire moves yet — drag a dot first";
+      setTimeout(() => { wireBtn.textContent = "Copy wire positions"; }, 2500);
+      return;
+    }
+    const text = JSON.stringify(positions, null, 2);
+    try { await navigator.clipboard.writeText(text); wireBtn.textContent = "Copied! Paste it to Muse"; }
+    catch { window.prompt("Copy your wire positions and paste them to Muse:", text); wireBtn.textContent = "Copy wire positions"; return; }
+    setTimeout(() => { wireBtn.textContent = "Copy wire positions"; }, 2500);
   });
   lockBtn.addEventListener("click", async () => {
     layoutLocked = !layoutLocked;
@@ -669,7 +790,7 @@ for (const module of modules) {
     if (viewLocked) saveCurrentView();
     refreshViewBtn();
   });
-  bar.append(copyBtn, lockBtn, viewBtn);
+  bar.append(copyBtn, wireBtn, lockBtn, viewBtn);
   document.body.append(bar);
   refreshLockBtn();
   refreshViewBtn();
@@ -708,12 +829,12 @@ function portTop(node, index, total) {
 }
 
 function wirePath(link) {
-  const from = byId[link.from];
-  const to = byId[link.to];
-  const x1 = from.x + from.w;
-  const y1 = from.y + portTop(from, link.outIndex, outSlot[from.id]);
-  const x2 = to.x;
-  const y2 = to.y + portTop(to, link.inIndex, inSlot[to.id]);
+  const p1 = portPos(link, "from");
+  const p2 = portPos(link, "to");
+  const x1 = p1.x;
+  const y1 = p1.y;
+  const x2 = p2.x;
+  const y2 = p2.y;
   const bend = Math.max(48, Math.abs(x2 - x1) * 0.45);
   return `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
 }
@@ -722,6 +843,11 @@ function redrawWires() {
   routed.forEach((link, index) => {
     wires[index]?.setAttribute("d", wirePath(link));
   });
+  for (const h of wireHandles) {
+    const pos = portPos(h.link, h.end);
+    h.dot.setAttribute("cx", pos.x);
+    h.dot.setAttribute("cy", pos.y);
+  }
 }
 
 function applyView() {
@@ -881,8 +1007,10 @@ if (backdrop && !backdrop.complete) {
     frameNetwork();
   });
 }
+world.append(handlesSvg);
 frameNetwork();
 restoreSavedView();
+redrawWires();
 drawAxisNumbers();
 
 function drawAxisNumbers() {
