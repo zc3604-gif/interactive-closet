@@ -144,6 +144,12 @@ body {
   stroke-width: 1.35;
 }
 
+/* Works pages only — front page wires stay at 1.35. */
+.works-graph .wire,
+.works-page .wire {
+  stroke-width: 0.75;
+}
+
 .node {
   position: absolute;
   width: 240px;
