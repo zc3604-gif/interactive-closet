@@ -436,9 +436,10 @@ body.works-graph .add-work {
   background: rgba(255, 255, 255, 0.92);
 }
 
-/* One small port dot on the top edge of each module — the single line runs
-   through these dots. Draggable: grab it and slide it left/right along
-   the top edge to move where the line attaches (JS sets its left). */
+/* One small port dot on each module — the single line runs through these
+   dots. Draggable: grab it and slide it all the way around the module
+   (top, right, bottom, left) to move where the line attaches. JS sets
+   its left/top to the port point; the negative margins centre it on it. */
 .work-node .port {
   position: absolute;
   top: -5px;
@@ -446,6 +447,7 @@ body.works-graph .add-work {
   width: 10px;
   height: 10px;
   margin-left: -5px;
+  margin-top: -5px;
   border-radius: 50%;
   background: #fff;
   border: 1.35px solid #111;
