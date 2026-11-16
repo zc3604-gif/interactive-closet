@@ -491,7 +491,7 @@ for (const module of modules) {
   if (module.id === "p5") mountBoxSketch(preview);
   if (module.id === "vj") mountGrapeSketch(preview);
   if (module.id === "video") mountBasinSketch(preview);
-  if (module.id === "works") mountHowlerSketch(preview);
+  // test branch: removed Moving image animated graphic (mountHowlerSketch) - static preview remains
   if (module.id === "3d") mountRibbonSketch(preview);
   node.append(preview);
   const kind = document.createElement("p");
