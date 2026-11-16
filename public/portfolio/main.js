@@ -525,16 +525,24 @@ function mountRibbonSketch(preview) {
 }
 
 function mountMovingImageP5Cover(preview) {
-  // The user's own p5.js sketch, embedded as the Moving image tile's cover.
-  // Full-bleed inside the 132px preview strip: host is .sketch (absolute,
-  // inset 0, pointer-events none, so dragging the module and tapping to
-  // open the page still work), iframe is borderless and fills it, black
-  // behind it while the sketch loads — no white part, no margins, no frame.
+  // The user's own p5.js sketch, hosted directly in the repo at
+  // ./moving-sketch/ (index.html + sketch.js + style.css, copied verbatim
+  // from their public p5 editor project zc3604 / 33Zc3jzwM) and embedded as
+  // the Moving image tile's cover. The editor's /full/ page was the problem:
+  // it renders a ~28px header bar with the pink p5 logo and sketch name, and
+  // its canvas sits below that header sized to the full window, so the art
+  // was pushed down and cropped out of the 132px preview strip — the tile
+  // showed the logo and the top of a white canvas, not the art. Hosting the
+  // sketch files directly removes the editor chrome entirely: the canvas is
+  // exactly the preview strip (240x132) and the sketch's own fit logic
+  // centers the ASCII art in it, full-bleed, no logo, no header, no offset.
+  // NOTE: this is a snapshot of the sketch as of 2026-11-16. If the user
+  // edits the sketch in the p5 editor later, re-copy the three files here.
   const host = document.createElement("div");
   host.className = "sketch";
   host.style.background = "#000";
   const frame = document.createElement("iframe");
-  frame.src = "https://editor.p5js.org/zc3604/full/33Zc3jzwM";
+  frame.src = "./moving-sketch/index.html";
   frame.title = "Moving image — p5.js sketch";
   frame.setAttribute("frameborder", "0");
   frame.setAttribute("scrolling", "no");
