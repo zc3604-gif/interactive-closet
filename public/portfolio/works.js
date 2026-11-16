@@ -754,7 +754,7 @@ function render(works) {
     node.style.touchAction = "none";
     const preview = document.createElement("div");
     preview.className = "preview";
-    const media = document.createElement(work.type.startsWith("video/") ? "video" : "img");
+    const media = document.createElement((work.type || "").startsWith("video/") ? "video" : "img");
     media.className = "media";
     if (work.src) {
       media.src = work.src;
