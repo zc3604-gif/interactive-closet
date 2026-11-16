@@ -12,7 +12,29 @@
     }
   ],
   "works": {
-    "p5": [],
+    "p5": [
+      {
+        "id": "c9c23594-c68d-4518-a9de-624fdb5ec9e0",
+        "title": "Sabishi",
+        "type": "image/jpeg",
+        "created": 1794820034453,
+        "file": "saved/p5/c9c23594-c68d-4518-a9de-624fdb5ec9e0.jpg"
+      },
+      {
+        "id": "200d0352-6a43-49cb-ac62-bdd5c67b2476",
+        "title": "1",
+        "type": "image/jpeg",
+        "created": 1794820033453,
+        "file": "saved/p5/200d0352-6a43-49cb-ac62-bdd5c67b2476.jpg"
+      },
+      {
+        "id": "171e1f64-e639-4634-97a0-baf3e20e789f",
+        "title": "iko",
+        "type": "image/jpeg",
+        "created": 1794820032453,
+        "file": "saved/p5/171e1f64-e639-4634-97a0-baf3e20e789f.jpg"
+      }
+    ],
     "models": [
       {
         "id": "0144f428-15b3-4d3c-9f71-8a5bcd6b3245",
