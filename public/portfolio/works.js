@@ -185,38 +185,68 @@ function currentLayout() {
   return Object.fromEntries(nodes.map((n) => [n.work.id, { x: Math.round(n.x), y: Math.round(n.y) }]));
 }
 
-// Draggable wire ports, like the front page wire ends: one dot per module
-// that the single line runs through. The dot can be dragged all the way
-// AROUND the module — top, right, bottom, left — not just along the top.
-// Stored per store, per work id, as a distance in pixels along the
-// module's perimeter, clockwise from the top-left corner:
-// top 0..120, right 120..212, bottom 212..332, left 332..424.
-// (Old values were pixels along the top edge, which is the same as a
-// perimeter distance of 0..120, so earlier adjustments still apply.)
+// Draggable wire ports, like the front page wire ends. Every module used
+// to have ONE dot where the incoming wire and the outgoing wire both met
+// — one knot, two lines. Now an intermediate module (one with a wire in
+// AND a wire out) gets TWO separate dots, one per wire, so each line has
+// its own attach point. End modules (first / last in the chain) keep one
+// dot each. Each dot can be dragged all the way AROUND the module — top,
+// right, bottom, left — not just along the top, with the same
+// nearestPerimeter behaviour as before.
+// Stored per store, per work id, as { in, out }: each a distance in
+// pixels along the module's perimeter, clockwise from the top-left
+// corner: top 0..120, right 120..212, bottom 212..332, left 332..424.
+// Backwards compatible: an old stored value was a single number — it is
+// read as the "in" port, and the "out" port starts PORT_OFFSET px further
+// along the perimeter, so the user's existing dot stays exactly where
+// they put it and the new dot appears next to it, not on top of it.
+// A work with no stored value starts at top centre (60) for "in" and
+// 60 + PORT_OFFSET for "out".
 const wirePortKey = `portfolio-works-wire-ports-${storeName}`;
 const wireLockKey = `portfolio-works-wires-locked-${storeName}`;
 const PERIMETER = 2 * (NODE_W + NODE_H);
+const PORT_OFFSET = 30; // perimeter px between a module's in and out dots
 let wiresLocked = false;
 try { wiresLocked = localStorage.getItem(wireLockKey) === "1"; } catch {}
 function readWirePortStore() {
   try { return JSON.parse(localStorage.getItem(wirePortKey)) || {}; } catch { return {}; }
 }
-function writeWirePortStore(workId, d) {
+function normPortDist(d, fallback) {
+  return Number.isFinite(d) ? ((d % PERIMETER) + PERIMETER) % PERIMETER : fallback;
+}
+// Both ports of one work, as { in, out }. Accepts the old single-number
+// format and partial objects, so nothing the user saved is lost.
+function readWirePorts(workId) {
+  const stored = readWirePortStore()[workId];
+  if (Number.isFinite(stored)) {
+    const inD = normPortDist(stored, NODE_W / 2);
+    return { in: inD, out: normPortDist(inD + PORT_OFFSET, inD + PORT_OFFSET) };
+  }
+  if (stored && typeof stored === "object") {
+    const inD = normPortDist(stored.in ?? stored.out, NODE_W / 2);
+    const outD = normPortDist(stored.out ?? inD + PORT_OFFSET, inD + PORT_OFFSET);
+    return { in: inD, out: outD };
+  }
+  return { in: NODE_W / 2, out: NODE_W / 2 + PORT_OFFSET };
+}
+function writeWirePortStore(workId, role, d) {
   const store = readWirePortStore();
-  store[workId] = d;
+  const ports = readWirePorts(workId);
+  ports[role] = normPortDist(d, ports[role]);
+  store[workId] = ports;
   try { localStorage.setItem(wirePortKey, JSON.stringify(store)); } catch {}
 }
-function portDist(entry) {
-  const stored = readWirePortStore()[entry.work.id];
-  if (Number.isFinite(stored)) return ((stored % PERIMETER) + PERIMETER) % PERIMETER;
-  return NODE_W / 2; // top centre, as before
+function portDist(entry, role = "in") {
+  return readWirePorts(entry.work.id)[role];
 }
-function portPoint(entry) {
-  const d = portDist(entry);
+function portPointAt(entry, d) {
   if (d < NODE_W) return { x: entry.x + d, y: entry.y };
   if (d < NODE_W + NODE_H) return { x: entry.x + NODE_W, y: entry.y + (d - NODE_W) };
   if (d < 2 * NODE_W + NODE_H) return { x: entry.x + (2 * NODE_W + NODE_H - d), y: entry.y + NODE_H };
   return { x: entry.x, y: entry.y + (PERIMETER - d) };
+}
+function portPoint(entry, role = "in") {
+  return portPointAt(entry, portDist(entry, role));
 }
 // Nearest point on the module's perimeter to a pointer (module-local
 // coords), as a perimeter distance plus the point itself. Dragging the
@@ -240,29 +270,53 @@ function nearestPerimeter(px, py) {
 }
 
 function redrawWires() {
-  // One continuous VERY CURVY line through every module's top port, in order,
-  // like the front page wires but more pronounced: each segment bows out
-  // sideways by ~72px, alternating left / right, so the wire is visibly
-  // wavy, not straight. Still one single line, redrawn live on drag.
+  // One continuous VERY CURVY line through every module's ports, in order,
+  // like the front page wires but more pronounced: each segment between
+  // modules bows out sideways by ~72px, alternating left / right, so the
+  // wire is visibly wavy, not straight. Still one single line, redrawn
+  // live on drag. Intermediate modules now contribute TWO points — the
+  // incoming wire ends at their "in" dot and the outgoing wire leaves
+  // from their separate "out" dot — so no dot ever carries two lines.
+  // The short hop between a module's own in and out dots is drawn straight
+  // (it runs underneath the module, which sits on top of the SVG), so it
+  // never bulges out past the module's edges.
   if (!nodes.length) {
     singleWire.setAttribute("d", "");
     return;
   }
-  const pts = nodes.map((n) => portPoint(n));
+  const pts = [];
+  nodes.forEach((n, i) => {
+    const first = i === 0;
+    const last = i === nodes.length - 1;
+    if (first && last) pts.push({ ...portPoint(n, "in"), node: n });
+    else if (first) pts.push({ ...portPoint(n, "out"), node: n });
+    else if (last) pts.push({ ...portPoint(n, "in"), node: n });
+    else {
+      pts.push({ ...portPoint(n, "in"), node: n });
+      pts.push({ ...portPoint(n, "out"), node: n });
+    }
+  });
   if (pts.length === 1) {
     singleWire.setAttribute("d", `M ${pts[0].x} ${pts[0].y}`);
     return;
   }
   let d = `M ${pts[0].x} ${pts[0].y}`;
+  let interIdx = 0; // counts only between-module segments, for the sway
   for (let i = 0; i < pts.length - 1; i++) {
     const p1 = pts[i];
     const p2 = pts[i + 1];
+    if (p1.node === p2.node) {
+      // Hop across one module, in dot -> out dot: straight, hidden below it.
+      d += ` L ${p2.x} ${p2.y}`;
+      continue;
+    }
     const dx = p2.x - p1.x;
     const dy = p2.y - p1.y;
     const len = Math.hypot(dx, dy) || 1;
     const px = -dy / len;
     const py = dx / len;
-    const sway = (i % 2 === 0 ? 72 : -72);
+    const sway = (interIdx % 2 === 0 ? 72 : -72);
+    interIdx += 1;
     const c1x = p1.x + dx * 0.35 + px * sway;
     const c1y = p1.y + dy * 0.35 + py * sway;
     const c2x = p2.x - dx * 0.35 + px * sway;
@@ -550,8 +604,9 @@ function refreshViewBtn() {
 function refreshWireLockBtn() {
   wireLockBtn.textContent = wiresLocked ? "Unlock wires" : "Lock wires";
   for (const n of nodes) {
-    const p = n.el && n.el.querySelector(".port");
-    if (p) p.style.cursor = wiresLocked ? "default" : "grab";
+    // A module can now have two port dots (in + out); lock / unlock both.
+    if (!n.el) continue;
+    for (const p of n.el.querySelectorAll(".port")) p.style.cursor = wiresLocked ? "default" : "grab";
   }
 }
 for (const b of [copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, fitBtn]) {
@@ -758,46 +813,60 @@ function render(works) {
     node.append(preview, meta);
     const entry = { work, el: node, x: pos.x, y: pos.y };
     nodes.push(entry);
-    // One port dot on the module — the single line runs through it.
-    // Drag it all the way around the module (top, right, bottom, left) to
-    // move where the line attaches. It sticks to the nearest edge.
-    const port = document.createElement("span");
-    port.className = "port";
-    port.setAttribute("aria-hidden", "true");
+    // Port dots on the module — one per wire that touches it. An
+    // intermediate module gets TWO dots (in + out), so the incoming and
+    // outgoing wires no longer share one knot; end modules get one dot.
+    // Each dot drags all the way around the module (top, right, bottom,
+    // left) to move where its line attaches, and saves its own position.
+    const makePort = (role) => {
+      const port = document.createElement("span");
+      port.className = "port";
+      port.dataset.role = role;
+      port.setAttribute("aria-hidden", "true");
+      {
+        const pp = portPoint(entry, role);
+        port.style.left = `${pp.x - entry.x}px`;
+        port.style.top = `${pp.y - entry.y}px`;
+      }
+      port.style.cursor = wiresLocked ? "default" : "grab";
+      port.style.touchAction = "none";
+      port.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        if (wiresLocked) return;
+        try { port.setPointerCapture(event.pointerId); } catch {}
+        port.style.cursor = "grabbing";
+        const onMove = (ev) => {
+          const rect = viewport.getBoundingClientRect();
+          const worldX = (ev.clientX - rect.left - x) / scale;
+          const worldY = (ev.clientY - rect.top - y) / scale;
+          const hit = nearestPerimeter(worldX - entry.x, worldY - entry.y);
+          writeWirePortStore(work.id, role, Math.round(hit.d));
+          port.style.left = `${hit.x}px`;
+          port.style.top = `${hit.y}px`;
+          redrawWires();
+        };
+        const onUp = () => {
+          port.style.cursor = wiresLocked ? "default" : "grab";
+          port.removeEventListener("pointermove", onMove);
+          port.removeEventListener("pointerup", onUp);
+          port.removeEventListener("pointercancel", onUp);
+        };
+        port.addEventListener("pointermove", onMove);
+        port.addEventListener("pointerup", onUp);
+        port.addEventListener("pointercancel", onUp);
+      });
+      return port;
+    };
     {
-      const pp = portPoint(entry);
-      port.style.left = `${pp.x - entry.x}px`;
-      port.style.top = `${pp.y - entry.y}px`;
+      const idx = nodes.length - 1;
+      const isFirst = idx === 0;
+      const isLast = idx === works.length - 1;
+      if (isFirst && isLast) node.append(makePort("in"));
+      else if (isFirst) node.append(makePort("out"));
+      else if (isLast) node.append(makePort("in"));
+      else { node.append(makePort("in")); node.append(makePort("out")); }
     }
-    port.style.cursor = wiresLocked ? "default" : "grab";
-    port.style.touchAction = "none";
-    port.addEventListener("pointerdown", (event) => {
-      event.stopPropagation();
-      event.preventDefault();
-      if (wiresLocked) return;
-      try { port.setPointerCapture(event.pointerId); } catch {}
-      port.style.cursor = "grabbing";
-      const onMove = (ev) => {
-        const rect = viewport.getBoundingClientRect();
-        const worldX = (ev.clientX - rect.left - x) / scale;
-        const worldY = (ev.clientY - rect.top - y) / scale;
-        const hit = nearestPerimeter(worldX - entry.x, worldY - entry.y);
-        writeWirePortStore(work.id, Math.round(hit.d));
-        port.style.left = `${hit.x}px`;
-        port.style.top = `${hit.y}px`;
-        redrawWires();
-      };
-      const onUp = () => {
-        port.style.cursor = wiresLocked ? "default" : "grab";
-        port.removeEventListener("pointermove", onMove);
-        port.removeEventListener("pointerup", onUp);
-        port.removeEventListener("pointercancel", onUp);
-      };
-      port.addEventListener("pointermove", onMove);
-      port.addEventListener("pointerup", onUp);
-      port.addEventListener("pointercancel", onUp);
-    });
-    node.append(port);
     // Drag a node: wires follow live, layout is saved; dragging starts on the
     // image / title area, never on a video, the editable title or the × button.
     let dragState = null;
