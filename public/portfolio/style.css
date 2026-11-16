@@ -384,3 +384,87 @@ body.works-page {
   font-size: 14px;
 }
 
+
+/* --- Works pages: TouchDesigner-style node graph (works.js / p5-works.js) --- */
+/* The old .works-grid styles above are kept for reference; the grid container
+   is retagged to #viewport by works.js and uses the front-page canvas styles. */
+
+body.works-graph {
+  overflow: hidden;
+  height: 100%;
+}
+
+body.works-graph .works {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Page title + "+ add a work" float above the canvas, like the chrome header. */
+body.works-graph .works-head {
+  position: fixed;
+  top: 52px;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin: 0;
+  padding: 0 18px;
+  pointer-events: none;
+}
+
+body.works-graph .works-head h1,
+body.works-graph .works-head p {
+  margin: 0;
+}
+
+body.works-graph .add-work {
+  pointer-events: auto;
+}
+
+/* One uploaded work = one front-page-style module. */
+.work-node {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.work-node .preview img,
+.work-node .preview video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: transparent;
+}
+
+.work-node .meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+
+.work-node .title {
+  flex: 1;
+  min-height: 1.2em;
+  font-size: 14px;
+}
+
+.work-node .remove {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #111;
+  background: #fff;
+  color: #111;
+  font: inherit;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+/* Empty state sits in the world like a node, so Fit view can frame it. */
+#world .empty {
+  position: absolute;
+  margin: 0;
+}
