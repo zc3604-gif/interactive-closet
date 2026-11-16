@@ -430,6 +430,22 @@ body.works-graph .add-work {
   background: rgba(255, 255, 255, 0.92);
 }
 
+/* One small port dot on the top edge of each module — the single line runs
+   through these dots. */
+.work-node .port {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1.35px solid #111;
+  z-index: 3;
+  pointer-events: none;
+}
+
 .work-node .preview {
   height: 64px;
   cursor: zoom-in;
