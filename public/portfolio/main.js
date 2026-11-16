@@ -524,6 +524,26 @@ function mountRibbonSketch(preview) {
   }, host);
 }
 
+function mountMovingImageP5Cover(preview) {
+  // The user's own p5.js sketch, embedded as the Moving image tile's cover.
+  // Full-bleed inside the 132px preview strip: host is .sketch (absolute,
+  // inset 0, pointer-events none, so dragging the module and tapping to
+  // open the page still work), iframe is borderless and fills it, black
+  // behind it while the sketch loads — no white part, no margins, no frame.
+  const host = document.createElement("div");
+  host.className = "sketch";
+  host.style.background = "#000";
+  const frame = document.createElement("iframe");
+  frame.src = "https://editor.p5js.org/zc3604/full/33Zc3jzwM";
+  frame.title = "Moving image — p5.js sketch";
+  frame.setAttribute("frameborder", "0");
+  frame.setAttribute("scrolling", "no");
+  frame.setAttribute("allowfullscreen", "");
+  frame.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0;margin:0;padding:0;display:block;background:#000;";
+  host.append(frame);
+  preview.append(host);
+}
+
 function mountHowlerSketch(preview) {
   const host = document.createElement("div");
   host.className = "sketch";
@@ -654,7 +674,9 @@ for (const module of modules) {
   if (module.id === "p5") mountBoxSketch(preview);
   if (module.id === "vj") mountGrapeSketch(preview);
   if (module.id === "video") mountBasinSketch(preview);
-  // test branch: removed Moving image animated graphic (mountHowlerSketch) - static preview remains
+  // Moving image cover (test branch): user's p5.js sketch, embedded full-bleed.
+  // This is NOT the old mountHowlerSketch animation removed in PR #1.
+  if (module.id === "works") mountMovingImageP5Cover(preview);
   if (module.id === "3d") mountRibbonSketch(preview);
   node.append(preview);
   const kind = document.createElement("p");
