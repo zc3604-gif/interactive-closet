@@ -43,7 +43,12 @@ function draw() {
 
   const lines = art.split("\n");
   const columns = Math.max(...lines.map(line => line.length));
-  const padding = 20;
+  // Tile framing (test branch, 2026-11-16): zoom in a little vs the
+  // editor original (padding 20 -> 10) and shift the art up (-4px) and
+  // left (-6px) per the user, so the whole ASCII picture fills the
+  // 240x132 tile. Font grows 2.67px -> ~3.25px; art stays fully inside
+  // the canvas (right <= ~220, bottom = 118 at cellRatio 0.55-0.65).
+  const padding = 10;
 
   // Fit the artwork inside the canvas.
   textSize(20);
@@ -55,8 +60,8 @@ function draw() {
 
   textSize(fontSize);
   const lineHeight = fontSize * 1.15;
-  const x = (width - columns * textWidth("M")) / 2;
-  const y = (height - lines.length * lineHeight) / 2;
+  const x = (width - columns * textWidth("M")) / 2 - 6;
+  const y = (height - lines.length * lineHeight) / 2 - 4;
 
   lines.forEach((line, i) => text(line, x, y + i * lineHeight));
 }
