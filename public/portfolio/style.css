@@ -437,19 +437,22 @@ body.works-graph .add-work {
 }
 
 /* One small port dot on the top edge of each module — the single line runs
-   through these dots. */
+   through these dots. Draggable: grab it and slide it left/right along
+   the top edge to move where the line attaches (JS sets its left). */
 .work-node .port {
   position: absolute;
-  top: -4px;
+  top: -5px;
   left: 50%;
-  width: 7px;
-  height: 7px;
-  margin-left: -4px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
   border-radius: 50%;
   background: #fff;
   border: 1.35px solid #111;
   z-index: 3;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
 }
 
 .work-node .preview {
