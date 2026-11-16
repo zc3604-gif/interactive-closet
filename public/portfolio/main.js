@@ -117,6 +117,12 @@ const routed = links.map(([from, to]) => {
 // Positions saved by the earlier test versions were fractions of the
 // 132px/52px preview strip, so they are migrated once to pixels on load.
 const portKey = "portfolio-wire-ports-v2";
+// Lock for the wire ends, mirroring Lock layout: when locked, the dots
+// cannot be dragged at all. Starts unlocked so the user can keep
+// adjusting; locking also copies the positions, like Lock layout does.
+const wireLockKey = "portfolio-wires-locked";
+let wiresLocked = false;
+try { wiresLocked = localStorage.getItem(wireLockKey) === "1"; } catch {}
 const oldPortKey = "portfolio-wire-ports";
 function readPortStore() {
   try { return JSON.parse(localStorage.getItem(portKey)) || {}; } catch { return {}; }
@@ -204,6 +210,7 @@ for (let li = 0; li < routed.length; li++) {
     dot.addEventListener("pointerdown", (event) => {
       event.stopPropagation();
       event.preventDefault();
+      if (wiresLocked) return;
       dot.setPointerCapture(event.pointerId);
       dot.style.cursor = "grabbing";
       const onMove = (ev) => {
@@ -227,6 +234,10 @@ for (let li = 0; li < routed.length; li++) {
     handlesSvg.append(dot);
     wireHandles.push({ link, end, dot });
   }
+}
+
+function refreshWireDots() {
+  for (const h of wireHandles) h.dot.style.cursor = wiresLocked ? "default" : "grab";
 }
 
 const textKey = "portfolio-module-text";
@@ -739,6 +750,7 @@ for (const module of modules) {
   copyBtn.textContent = "Copy layout";
   const wireBtn = document.createElement("button");
   wireBtn.textContent = "Copy wire positions";
+  const wireLockBtn = document.createElement("button");
   const lockBtn = document.createElement("button");
   const viewBtn = document.createElement("button");
   viewBtn.type = "button";
@@ -752,7 +764,11 @@ for (const module of modules) {
     viewBtn.style.background = viewLocked ? "#111" : "#fff";
     viewBtn.style.color = viewLocked ? "#fff" : "#111";
   }
-  for (const b of [copyBtn, wireBtn, lockBtn, viewBtn]) {
+  function refreshWireLockBtn() {
+    wireLockBtn.textContent = wiresLocked ? "Unlock wires" : "Lock wires";
+    refreshWireDots();
+  }
+  for (const b of [copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn]) {
     b.style.cssText = "padding:8px 12px;border:1px solid #111;background:#fff;color:#111;font-size:13px;cursor:pointer;";
   }
   copyBtn.addEventListener("click", async () => {
@@ -773,6 +789,17 @@ for (const module of modules) {
     catch { window.prompt("Copy your wire positions and paste them to Muse:", text); wireBtn.textContent = "Copy wire positions"; return; }
     setTimeout(() => { wireBtn.textContent = "Copy wire positions"; }, 2500);
   });
+  wireLockBtn.addEventListener("click", async () => {
+    wiresLocked = !wiresLocked;
+    try { localStorage.setItem(wireLockKey, wiresLocked ? "1" : "0"); } catch {}
+    refreshWireLockBtn();
+    if (wiresLocked) {
+      const text = JSON.stringify(readPortStore(), null, 2);
+      try { await navigator.clipboard.writeText(text); wireLockBtn.textContent = "Locked — positions copied"; }
+      catch { wireLockBtn.textContent = "Locked"; }
+      setTimeout(refreshWireLockBtn, 2500);
+    }
+  });
   lockBtn.addEventListener("click", async () => {
     layoutLocked = !layoutLocked;
     try { localStorage.setItem(lockKey, layoutLocked ? "1" : "0"); } catch {}
@@ -790,9 +817,10 @@ for (const module of modules) {
     if (viewLocked) saveCurrentView();
     refreshViewBtn();
   });
-  bar.append(copyBtn, wireBtn, lockBtn, viewBtn);
+  bar.append(copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn);
   document.body.append(bar);
   refreshLockBtn();
+  refreshWireLockBtn();
   refreshViewBtn();
 }
 
