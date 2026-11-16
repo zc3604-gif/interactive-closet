@@ -10,20 +10,20 @@
 //   - small helpers the page gather code uses (fetchJson, blobToBase64,
 //     extForType, mimeForExt, validateCatalog, blankState).
 //
-// The relay URL below is a PLACEHOLDER: after the Worker is deployed,
-// replace REPLACE-ME with its real subdomain (follow-up commit). Until
-// then the Save button reports "not set up yet" instead of failing.
+// The relay URL below is the deployed Vercel save relay
+// (public/portfolio/save-relay, api/save.js). The Save button posts to
+// ${SAVE_RELAY_URL}/save; if the URL is ever a placeholder again,
+// saveFiles() refuses to send and reports "not set up yet" instead.
 // No secret ever lives in this file: the passphrase is typed by the user
 // and kept only in this browser's localStorage; the GitHub token lives
 // only in the Worker (see save-relay/README.md).
 (function () {
   "use strict";
 
-  // TODO: fill in the real Worker URL after deploying
-  // public/portfolio/save-relay/worker.js (see save-relay/README.md).
-  // Keep the placeholder until then — saveFiles() refuses to send
-  // anything while it is still a placeholder.
-  const SAVE_RELAY_URL = "https://portfolio-save-relay.REPLACE-ME.workers.dev";
+  // Vercel save relay (deployed from public/portfolio/save-relay):
+  // bare project domain, no /api suffix — saveFiles() posts to
+  // ${SAVE_RELAY_URL}/save (rewritten to /api/save by vercel.json).
+  const SAVE_RELAY_URL = "https://interactive-closet.vercel.app";
   const PASSPHRASE_KEY = "portfolio-save-passphrase";
   const STATE_URL = "./saved/state.json";
 
