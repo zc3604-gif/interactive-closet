@@ -524,6 +524,50 @@ function mountRibbonSketch(preview) {
   }, host);
 }
 
+function mountMovingImageP5Cover(preview) {
+  // The user's own p5.js sketch, hosted directly in the repo at
+  // ./moving-sketch/ (index.html + sketch.js + style.css, copied verbatim
+  // from their public p5 editor project zc3604 / 33Zc3jzwM) and embedded as
+  // the Moving image tile's cover. The editor's /full/ page was the problem:
+  // it renders a ~28px header bar with the pink p5 logo and sketch name, and
+  // its canvas sits below that header sized to the full window, so the art
+  // was pushed down and cropped out of the 132px preview strip — the tile
+  // showed the logo and the top of a white canvas, not the art. Hosting the
+  // sketch files directly removes the editor chrome entirely: the canvas is
+  // exactly the preview strip (240x132) and the sketch's own fit logic
+  // centers the ASCII art in it, full-bleed, no logo, no header, no offset.
+  // NOTE: this is a snapshot of the sketch as of 2026-11-16. If the user
+  // edits the sketch in the p5 editor later, re-copy the three files here.
+  // v56 (2026-11-16): fill the whole tile edge-to-edge. The user said
+  // a tiny edge crop is OK. Centre is UNCHANGED at (114, 62) — sketch.js
+  // now scales to cover (art >= 252x140), so the edges crop a little
+  // instead of leaving white margins. Bumped to v56 to bust the cache.
+  // v55 (2026-11-16): position is PERFECT per the user — do not move it.
+  // Zoom in a little more only: sketch padding 10 -> 6, font ~3.48px,
+  // art 191-226x120, centre still (114, 62), art still fully inside the
+  // 240x132 tile. Bumped to v55 to bust the githack cache again.
+  // v54 (2026-11-16): the user still saw the p5 logo on the test preview
+  // because raw.githack.com was serving STALE main.js (v52, editor iframe)
+  // even for ?v=53, while raw.githubusercontent.com served the correct v53
+  // hosted sketch — so the ?v= bump alone did not bust githack's cache.
+  // This version also zooms the hosted art in (padding 20 -> 10 in
+  // sketch.js) and shifts it up 4px / left 6px per the user, so the whole
+  // picture shows centred in the 240x132 tile. The ?v=55 on the iframe
+  // src busts the iframe cache too. No editor URL anywhere in this file.
+  const host = document.createElement("div");
+  host.className = "sketch";
+  host.style.background = "#000";
+  const frame = document.createElement("iframe");
+  frame.src = "./moving-sketch/index.html?v=56";
+  frame.title = "Moving image — p5.js sketch";
+  frame.setAttribute("frameborder", "0");
+  frame.setAttribute("scrolling", "no");
+  frame.setAttribute("allowfullscreen", "");
+  frame.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0;margin:0;padding:0;display:block;background:#000;";
+  host.append(frame);
+  preview.append(host);
+}
+
 function mountHowlerSketch(preview) {
   const host = document.createElement("div");
   host.className = "sketch";
@@ -654,7 +698,9 @@ for (const module of modules) {
   if (module.id === "p5") mountBoxSketch(preview);
   if (module.id === "vj") mountGrapeSketch(preview);
   if (module.id === "video") mountBasinSketch(preview);
-  // test branch: removed Moving image animated graphic (mountHowlerSketch) - static preview remains
+  // Moving image cover (test branch): user's p5.js sketch, embedded full-bleed.
+  // This is NOT the old mountHowlerSketch animation removed in PR #1.
+  if (module.id === "works") mountMovingImageP5Cover(preview);
   if (module.id === "3d") mountRibbonSketch(preview);
   node.append(preview);
   const kind = document.createElement("p");
