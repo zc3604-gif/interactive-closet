@@ -107,34 +107,57 @@ const routed = links.map(([from, to]) => {
   return { from, to, outIndex, inIndex };
 });
 
-// Draggable wire ends: each wire end has a saved position (fraction 0..1
-// down the module's side band) in localStorage, so the user can grab the
+// Draggable wire ends: each wire end has a saved position (pixels down
+// from the top of its module) in localStorage, so the user can grab the
 // little dot at the end of a wire and slide it up/down the module edge.
-// Defaults match the old auto-assigned portTop() positions.
-const portKey = "portfolio-wire-ports";
+// The range is the module's REAL rendered height (module.el.offsetHeight),
+// not the 292px in the data — the artist tile's long body text makes it
+// render ~400px tall, which is why a dot clamped to 292px stopped short
+// of the tile's real bottom edge, inside the text.
+// Positions saved by the earlier test versions were fractions of the
+// 132px/52px preview strip, so they are migrated once to pixels on load.
+const portKey = "portfolio-wire-ports-v2";
+const oldPortKey = "portfolio-wire-ports";
 function readPortStore() {
   try { return JSON.parse(localStorage.getItem(portKey)) || {}; } catch { return {}; }
 }
-function writePortStore(linkKey, end, frac) {
+function writePortStore(linkKey, end, px) {
   const store = readPortStore();
-  store[linkKey + ":" + end] = frac;
+  store[linkKey + ":" + end] = px;
   try { localStorage.setItem(portKey, JSON.stringify(store)); } catch {}
 }
-function portFrac(node, link, end) {
+(function migratePortStore() {
+  try {
+    if (localStorage.getItem(portKey)) return;
+    const old = JSON.parse(localStorage.getItem(oldPortKey) || "{}");
+    const next = {};
+    for (const [k, frac] of Object.entries(old)) {
+      if (!Number.isFinite(frac)) continue;
+      const [pair, end] = k.split(":");
+      const [from, to] = pair.split(">");
+      const node = byId[end === "from" ? from : to];
+      if (!node) continue;
+      // Old values were fractions of the preview strip (132px large / 52px small).
+      next[k] = Math.round(frac * (node.small ? 52 : 132));
+    }
+    if (Object.keys(next).length) localStorage.setItem(portKey, JSON.stringify(next));
+    localStorage.removeItem(oldPortKey);
+  } catch {}
+})();
+function renderedH(node) {
+  return node.el && node.el.offsetHeight ? node.el.offsetHeight : node.h;
+}
+function portOffset(node, link, end) {
   const stored = readPortStore()[link.from + ">" + link.to + ":" + end];
-  if (Number.isFinite(stored)) return Math.min(1, Math.max(0, stored));
-  // Default keeps the old look: old portTop offset, now as a fraction
-  // of the FULL module height, so a dot can slide past the preview line.
-  const index = end === "from" ? link.outIndex : link.inIndex;
-  const total = end === "from" ? outSlot[link.from] : inSlot[link.to];
-  return portTop(node, index, total) / node.h;
+  if (Number.isFinite(stored)) return Math.min(renderedH(node), Math.max(0, stored));
+  // Default keeps the old look: the old auto-assigned portTop offset.
+  return portTop(node, end === "from" ? link.outIndex : link.inIndex, end === "from" ? outSlot[link.from] : inSlot[link.to]);
 }
 function portPos(link, end) {
   const node = byId[end === "from" ? link.from : link.to];
-  const band = node.h;
   return {
     x: end === "from" ? node.x + node.w : node.x,
-    y: node.y + portFrac(node, link, end) * band,
+    y: node.y + portOffset(node, link, end),
   };
 }
 
@@ -187,12 +210,8 @@ for (let li = 0; li < routed.length; li++) {
         const rect = viewport.getBoundingClientRect();
         const worldY = (ev.clientY - rect.top - y) / scale;
         const node = byId[end === "from" ? link.from : link.to];
-        const band = node.h;
-        const frac = Math.min(1, Math.max(0, (worldY - node.y) / band));
-        // live preview: stash in memory, save on release
-        const store = readPortStore();
-        store[link.from + ">" + link.to + ":" + end] = frac;
-        try { localStorage.setItem(portKey, JSON.stringify(store)); } catch {}
+        const px = Math.min(renderedH(node), Math.max(0, worldY - node.y));
+        writePortStore(link.from + ">" + link.to, end, Math.round(px));
         redrawWires();
       };
       const onUp = () => {
