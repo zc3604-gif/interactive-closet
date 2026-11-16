@@ -203,8 +203,8 @@ body {
   right: 4px;
   bottom: 4px;
   z-index: 2;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border: 1px solid #111;
   background: #fff;
   color: #111;
@@ -424,14 +424,14 @@ body.works-graph .add-work {
   pointer-events: auto;
 }
 
-/* One uploaded work = one front-page-style module, smaller (160px wide). */
+/* One uploaded work = one front-page-style module, smaller still (120px wide). */
 .work-node {
-  width: 160px;
+  width: 120px;
   background: rgba(255, 255, 255, 0.92);
 }
 
 .work-node .preview {
-  height: 88px;
+  height: 64px;
   cursor: zoom-in;
 }
 
@@ -448,25 +448,25 @@ body.works-graph .add-work {
 .work-node .meta {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px 8px;
+  gap: 4px;
+  padding: 5px 6px 6px;
 }
 
 .work-node .title {
   flex: 1;
   min-height: 1.2em;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .work-node .remove {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border: 1px solid #111;
   background: #fff;
   color: #111;
   font: inherit;
-  font-size: 12px;
-  line-height: 15px;
+  font-size: 11px;
+  line-height: 13px;
   cursor: pointer;
 }
 
