@@ -40,6 +40,15 @@ const posKey = "portfolio-module-positions";
 const lockKey = "portfolio-layout-locked";
 let layoutLocked = true;
 try { layoutLocked = localStorage.getItem(lockKey) !== "0"; } catch {}
+// View (camera) lock for the front page, same as the works pages:
+// locking the view snapshots the current zoom/pan into localStorage,
+// so a reload restores the same composition. Modules can still be
+// dragged individually while the view is locked (unless the layout
+// is locked too).
+const viewKey = "portfolio-view-front";
+const viewLockKey = "portfolio-view-locked-front";
+let viewLocked = false;
+try { viewLocked = localStorage.getItem(viewLockKey) === "1"; } catch {}
 
 function currentLayout() {
   return Object.fromEntries(modules.map((m) => [m.id, { x: Math.round(m.x), y: Math.round(m.y) }]));
@@ -622,11 +631,19 @@ for (const module of modules) {
   const copyBtn = document.createElement("button");
   copyBtn.textContent = "Copy layout";
   const lockBtn = document.createElement("button");
+  const viewBtn = document.createElement("button");
+  viewBtn.type = "button";
   function refreshLockBtn() {
     lockBtn.textContent = layoutLocked ? "Unlock layout" : "Lock layout";
     for (const m of modules) if (m.el) m.el.style.cursor = layoutLocked ? "default" : "grab";
   }
-  for (const b of [copyBtn, lockBtn]) {
+  function refreshViewBtn() {
+    viewBtn.textContent = viewLocked ? "Unlock view" : "Lock view";
+    viewBtn.setAttribute("aria-pressed", viewLocked ? "true" : "false");
+    viewBtn.style.background = viewLocked ? "#111" : "#fff";
+    viewBtn.style.color = viewLocked ? "#fff" : "#111";
+  }
+  for (const b of [copyBtn, lockBtn, viewBtn]) {
     b.style.cssText = "padding:8px 12px;border:1px solid #111;background:#fff;color:#111;font-size:13px;cursor:pointer;";
   }
   copyBtn.addEventListener("click", async () => {
@@ -646,9 +663,37 @@ for (const module of modules) {
       setTimeout(refreshLockBtn, 2500);
     }
   });
-  bar.append(copyBtn, lockBtn);
+  viewBtn.addEventListener("click", () => {
+    viewLocked = !viewLocked;
+    try { localStorage.setItem(viewLockKey, viewLocked ? "1" : "0"); } catch {}
+    if (viewLocked) saveCurrentView();
+    refreshViewBtn();
+  });
+  bar.append(copyBtn, lockBtn, viewBtn);
   document.body.append(bar);
   refreshLockBtn();
+  refreshViewBtn();
+}
+
+function readSavedView() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(viewKey)) || null;
+    if (!saved || !Number.isFinite(saved.x) || !Number.isFinite(saved.y) || !Number.isFinite(saved.scale)) return null;
+    return saved;
+  } catch { return null; }
+}
+function saveCurrentView() {
+  try { localStorage.setItem(viewKey, JSON.stringify({ x: Math.round(x), y: Math.round(y), scale })); } catch {}
+}
+function restoreSavedView() {
+  if (!viewLocked) return false;
+  const saved = readSavedView();
+  if (!saved) return false;
+  scale = Math.min(10000, Math.max(baseScale, saved.scale));
+  x = saved.x;
+  y = saved.y;
+  applyView();
+  return true;
 }
 
 let x = 0;
@@ -732,6 +777,7 @@ function frameNetwork() {
 }
 
 function zoomAt(clientX, nextScale) {
+  if (viewLocked) return;
   const span = networkSpan();
   const rect = viewport.getBoundingClientRect();
   const px = clientX - rect.left;
@@ -746,6 +792,7 @@ function zoomAt(clientX, nextScale) {
 viewport.addEventListener(
   "wheel",
   (event) => {
+    if (viewLocked) { event.preventDefault(); return; }
     event.preventDefault();
     const sideways = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
     if (sideways) {
@@ -788,6 +835,7 @@ window.addEventListener(
       touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
     }
     if (touches.size < 2) return;
+    if (viewLocked) { event.preventDefault(); return; }
     event.preventDefault();
     const [a, b] = [...touches.values()];
     const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
@@ -823,6 +871,7 @@ window.addEventListener("pointerup", endTouch);
 window.addEventListener("pointercancel", endTouch);
 
 window.addEventListener("resize", () => {
+  if (viewLocked) { restoreSavedView(); drawAxisNumbers(); return; }
   frameNetwork();
   drawAxisNumbers();
 });
@@ -833,6 +882,7 @@ if (backdrop && !backdrop.complete) {
   });
 }
 frameNetwork();
+restoreSavedView();
 drawAxisNumbers();
 
 function drawAxisNumbers() {
