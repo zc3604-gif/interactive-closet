@@ -424,9 +424,15 @@ body.works-graph .add-work {
   pointer-events: auto;
 }
 
-/* One uploaded work = one front-page-style module. */
+/* One uploaded work = one front-page-style module, smaller (160px wide). */
 .work-node {
+  width: 160px;
   background: rgba(255, 255, 255, 0.92);
+}
+
+.work-node .preview {
+  height: 88px;
+  cursor: zoom-in;
 }
 
 .work-node .preview img,
@@ -442,24 +448,80 @@ body.works-graph .add-work {
 .work-node .meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px 10px;
+  gap: 6px;
+  padding: 6px 8px 8px;
 }
 
 .work-node .title {
   flex: 1;
   min-height: 1.2em;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .work-node .remove {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border: 1px solid #111;
   background: #fff;
   color: #111;
   font: inherit;
-  line-height: 18px;
+  font-size: 12px;
+  line-height: 15px;
+  cursor: pointer;
+}
+
+/* Lightbox: full-size view. Fixed overlay on the page (outside the zoomable
+   canvas), so zoom / pan never scale it. */
+.works-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.88);
+}
+
+.works-lightbox.open {
+  display: flex;
+}
+
+.works-lightbox .lightbox-figure {
+  margin: 0;
+  max-width: 92vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.works-lightbox .lightbox-media img,
+.works-lightbox .lightbox-media video {
+  display: block;
+  max-width: 92vw;
+  max-height: 82vh;
+  object-fit: contain;
+  background: transparent;
+}
+
+.works-lightbox .lightbox-caption {
+  color: #fff;
+  font-size: 14px;
+  text-align: center;
+}
+
+.works-lightbox .lightbox-close {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #fff;
+  background: transparent;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
   cursor: pointer;
 }
 
