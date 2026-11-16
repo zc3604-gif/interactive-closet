@@ -203,8 +203,8 @@ body {
   right: 4px;
   bottom: 4px;
   z-index: 2;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border: 1px solid #111;
   background: #fff;
   color: #111;
@@ -384,3 +384,165 @@ body.works-page {
   font-size: 14px;
 }
 
+
+/* --- Works pages: TouchDesigner-style node graph (works.js / p5-works.js) --- */
+/* The old .works-grid styles above are kept for reference; the grid container
+   is retagged to #viewport by works.js and uses the front-page canvas styles. */
+
+body.works-graph {
+  overflow: hidden;
+  height: 100%;
+}
+
+body.works-graph .works {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Page title + "+ add a work" float above the canvas, like the chrome header. */
+body.works-graph .works-head {
+  position: fixed;
+  top: 52px;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin: 0;
+  padding: 0 18px;
+  pointer-events: none;
+}
+
+body.works-graph .works-head h1,
+body.works-graph .works-head p {
+  margin: 0;
+}
+
+body.works-graph .add-work {
+  pointer-events: auto;
+}
+
+/* One uploaded work = one front-page-style module, smaller still (120px wide). */
+.work-node {
+  width: 120px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+/* One small port dot on the top edge of each module — the single line runs
+   through these dots. */
+.work-node .port {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1.35px solid #111;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.work-node .preview {
+  height: 64px;
+  cursor: zoom-in;
+}
+
+.work-node .preview img,
+.work-node .preview video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: transparent;
+}
+
+.work-node .meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px 6px;
+}
+
+.work-node .title {
+  flex: 1;
+  min-height: 1.2em;
+  font-size: 11px;
+}
+
+.work-node .remove {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #111;
+  background: #fff;
+  color: #111;
+  font: inherit;
+  font-size: 11px;
+  line-height: 13px;
+  cursor: pointer;
+}
+
+/* Lightbox: full-size view. Fixed overlay on the page (outside the zoomable
+   canvas), so zoom / pan never scale it. */
+.works-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.88);
+}
+
+.works-lightbox.open {
+  display: flex;
+}
+
+.works-lightbox .lightbox-figure {
+  margin: 0;
+  max-width: 92vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.works-lightbox .lightbox-media img,
+.works-lightbox .lightbox-media video {
+  display: block;
+  max-width: 92vw;
+  max-height: 82vh;
+  object-fit: contain;
+  background: transparent;
+}
+
+.works-lightbox .lightbox-caption {
+  color: #fff;
+  font-size: 14px;
+  text-align: center;
+}
+
+.works-lightbox .lightbox-close {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #fff;
+  background: transparent;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Empty state sits in the world like a node, so Fit view can frame it. */
+#world .empty {
+  position: absolute;
+  margin: 0;
+}
