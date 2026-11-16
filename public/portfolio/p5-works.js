@@ -127,18 +127,37 @@ function topPort(n) {
 }
 
 function redrawWires() {
-  // One continuous straight line through every module's top port, in order.
-  // No elbows, no wrap-around routing — the line simply goes port to port.
+  // One continuous CURVED line through every module's top port, in order,
+  // like the front page wires: soft cubic Bezier curves, no straight
+  // segments, no elbows. Two points use the front-page bend
+  // (max(48, |dx| * 0.45)); three or more use a Catmull-Rom spline so the
+  // curve eases through every port.
   if (!nodes.length) {
     singleWire.setAttribute("d", "");
     return;
   }
-  const d = nodes
-    .map((n, i) => {
-      const p = topPort(n);
-      return `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`;
-    })
-    .join(" ");
+  const pts = nodes.map((n) => topPort(n));
+  if (pts.length === 1) {
+    singleWire.setAttribute("d", `M ${pts[0].x} ${pts[0].y}`);
+    return;
+  }
+  if (pts.length === 2) {
+    const bend = Math.max(48, Math.abs(pts[1].x - pts[0].x) * 0.45);
+    singleWire.setAttribute("d", `M ${pts[0].x} ${pts[0].y} C ${pts[0].x + bend} ${pts[0].y}, ${pts[1].x - bend} ${pts[1].y}, ${pts[1].x} ${pts[1].y}`);
+    return;
+  }
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
+  }
   singleWire.setAttribute("d", d);
 }
 
