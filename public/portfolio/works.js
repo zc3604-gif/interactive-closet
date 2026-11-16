@@ -123,8 +123,32 @@ svg.append(singleWire);
 // works that are already placed.
 const posKey = `portfolio-works-positions-${storeName}`;
 const lockKey = `portfolio-works-locked-${storeName}`;
-let layoutLocked = false;
-try { layoutLocked = localStorage.getItem(lockKey) === "1"; } catch {}
+
+// Default layouts saved in the repo, keyed by store then work id.
+// These are positions the user arranged by dragging and pasted to Muse.
+// A work's position comes from localStorage first, then this map, then the
+// normal chain layout — so a new visitor sees the saved layout, while the
+// user's own dragged positions in their browser still win.
+const DEFAULT_POSITIONS = {
+  models: {
+    "25bbac23-d41b-4e76-9300-bc623b2cfb79": { x: -354, y: -67 }, // LC FAR
+    "0144f428-15b3-4d3c-9f71-8a5bcd6b3245": { x: -216, y: 51 }, // CLOSE
+    "f0a84f8e-317b-4c31-b803-5d4789e6f9f8": { x: -213, y: 185 }, // misa
+    "9546bd75-be05-4814-bc25-9c129b03abab": { x: -219, y: 315 }, // room
+    "f2f624ea-6552-458f-8459-839c62d751ff": { x: -135, y: 492 }, // room
+  },
+};
+const storeDefaults = DEFAULT_POSITIONS[storeName] || {};
+
+// Stores with a layout saved in the repo start locked (like the front page
+// after the user locked it), unless the user explicitly unlocked in this
+// browser. Stores with no saved default start unlocked.
+let layoutLocked = Object.keys(storeDefaults).length > 0;
+try {
+  const lockState = localStorage.getItem(lockKey);
+  if (lockState === "1") layoutLocked = true;
+  else if (lockState === "0") layoutLocked = false;
+} catch {}
 
 function readPosStore() {
   try {
@@ -490,6 +514,9 @@ function render(works) {
   let slot = 0;
   for (const work of works) {
     let pos = saved[work.id];
+    if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
+      pos = storeDefaults[work.id];
+    }
     if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
       pos = chainPos(slot);
       writePosStore(work.id, pos.x, pos.y);
