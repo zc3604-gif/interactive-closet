@@ -185,8 +185,58 @@ function currentLayout() {
   return Object.fromEntries(nodes.map((n) => [n.work.id, { x: Math.round(n.x), y: Math.round(n.y) }]));
 }
 
-function topPort(n) {
-  return { x: n.x + NODE_W / 2, y: n.y };
+// Draggable wire ports, like the front page wire ends: one dot per module
+// that the single line runs through. The dot can be dragged all the way
+// AROUND the module — top, right, bottom, left — not just along the top.
+// Stored per store, per work id, as a distance in pixels along the
+// module's perimeter, clockwise from the top-left corner:
+// top 0..120, right 120..212, bottom 212..332, left 332..424.
+// (Old values were pixels along the top edge, which is the same as a
+// perimeter distance of 0..120, so earlier adjustments still apply.)
+const wirePortKey = `portfolio-works-wire-ports-${storeName}`;
+const wireLockKey = `portfolio-works-wires-locked-${storeName}`;
+const PERIMETER = 2 * (NODE_W + NODE_H);
+let wiresLocked = false;
+try { wiresLocked = localStorage.getItem(wireLockKey) === "1"; } catch {}
+function readWirePortStore() {
+  try { return JSON.parse(localStorage.getItem(wirePortKey)) || {}; } catch { return {}; }
+}
+function writeWirePortStore(workId, d) {
+  const store = readWirePortStore();
+  store[workId] = d;
+  try { localStorage.setItem(wirePortKey, JSON.stringify(store)); } catch {}
+}
+function portDist(entry) {
+  const stored = readWirePortStore()[entry.work.id];
+  if (Number.isFinite(stored)) return ((stored % PERIMETER) + PERIMETER) % PERIMETER;
+  return NODE_W / 2; // top centre, as before
+}
+function portPoint(entry) {
+  const d = portDist(entry);
+  if (d < NODE_W) return { x: entry.x + d, y: entry.y };
+  if (d < NODE_W + NODE_H) return { x: entry.x + NODE_W, y: entry.y + (d - NODE_W) };
+  if (d < 2 * NODE_W + NODE_H) return { x: entry.x + (2 * NODE_W + NODE_H - d), y: entry.y + NODE_H };
+  return { x: entry.x, y: entry.y + (PERIMETER - d) };
+}
+// Nearest point on the module's perimeter to a pointer (module-local
+// coords), as a perimeter distance plus the point itself. Dragging the
+// dot sticks it to whichever edge the pointer is closest to, so it
+// rounds corners as you drag it around the module.
+function nearestPerimeter(px, py) {
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const cands = [
+    { x: clamp(px, 0, NODE_W), y: 0, d: clamp(px, 0, NODE_W) },
+    { x: NODE_W, y: clamp(py, 0, NODE_H), d: NODE_W + clamp(py, 0, NODE_H) },
+    { x: clamp(px, 0, NODE_W), y: NODE_H, d: NODE_W + NODE_H + (NODE_W - clamp(px, 0, NODE_W)) },
+    { x: 0, y: clamp(py, 0, NODE_H), d: 2 * NODE_W + NODE_H + (NODE_H - clamp(py, 0, NODE_H)) },
+  ];
+  let best = cands[0];
+  let bestD2 = Infinity;
+  for (const c of cands) {
+    const d2 = (c.x - px) ** 2 + (c.y - py) ** 2;
+    if (d2 < bestD2) { bestD2 = d2; best = c; }
+  }
+  return best;
 }
 
 function redrawWires() {
@@ -198,7 +248,7 @@ function redrawWires() {
     singleWire.setAttribute("d", "");
     return;
   }
-  const pts = nodes.map((n) => topPort(n));
+  const pts = nodes.map((n) => portPoint(n));
   if (pts.length === 1) {
     singleWire.setAttribute("d", `M ${pts[0].x} ${pts[0].y}`);
     return;
@@ -468,6 +518,11 @@ toolbar.style.cssText = "position:fixed;top:108px;right:12px;z-index:9999;displa
 const copyBtn = document.createElement("button");
 copyBtn.type = "button";
 copyBtn.textContent = "Copy layout";
+const wireBtn = document.createElement("button");
+wireBtn.type = "button";
+wireBtn.textContent = "Copy wire positions";
+const wireLockBtn = document.createElement("button");
+wireLockBtn.type = "button";
 const lockBtn = document.createElement("button");
 lockBtn.type = "button";
 const viewBtn = document.createElement("button");
@@ -492,7 +547,14 @@ function refreshViewBtn() {
   fitBtn.style.cursor = viewLocked ? "not-allowed" : "pointer";
 }
 
-for (const b of [copyBtn, lockBtn, viewBtn, fitBtn]) {
+function refreshWireLockBtn() {
+  wireLockBtn.textContent = wiresLocked ? "Unlock wires" : "Lock wires";
+  for (const n of nodes) {
+    const p = n.el && n.el.querySelector(".port");
+    if (p) p.style.cursor = wiresLocked ? "default" : "grab";
+  }
+}
+for (const b of [copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, fitBtn]) {
   b.style.cssText = "padding:8px 12px;border:1px solid #111;background:#fff;color:#111;font-size:13px;cursor:pointer;";
 }
 copyBtn.addEventListener("click", async () => {
@@ -500,6 +562,29 @@ copyBtn.addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(text); copyBtn.textContent = "Copied! Paste it to Muse"; }
   catch { window.prompt("Copy your layout and paste it to Muse:", text); copyBtn.textContent = "Copy layout"; return; }
   setTimeout(() => { copyBtn.textContent = "Copy layout"; }, 2500);
+});
+wireBtn.addEventListener("click", async () => {
+  const positions = readWirePortStore();
+  if (!Object.keys(positions).length) {
+    wireBtn.textContent = "No wire moves yet — drag a dot around a module first";
+    setTimeout(() => { wireBtn.textContent = "Copy wire positions"; }, 2500);
+    return;
+  }
+  const text = JSON.stringify(positions, null, 2);
+  try { await navigator.clipboard.writeText(text); wireBtn.textContent = "Copied! Paste it to Muse"; }
+  catch { window.prompt("Copy your wire positions and paste them to Muse:", text); wireBtn.textContent = "Copy wire positions"; return; }
+  setTimeout(() => { wireBtn.textContent = "Copy wire positions"; }, 2500);
+});
+wireLockBtn.addEventListener("click", async () => {
+  wiresLocked = !wiresLocked;
+  try { localStorage.setItem(wireLockKey, wiresLocked ? "1" : "0"); } catch {}
+  refreshWireLockBtn();
+  if (wiresLocked) {
+    const text = JSON.stringify(readWirePortStore(), null, 2);
+    try { await navigator.clipboard.writeText(text); wireLockBtn.textContent = "Locked — positions copied"; }
+    catch { wireLockBtn.textContent = "Locked"; }
+    setTimeout(refreshWireLockBtn, 2500);
+  }
 });
 lockBtn.addEventListener("click", async () => {
   layoutLocked = !layoutLocked;
@@ -523,9 +608,10 @@ fitBtn.addEventListener("click", () => {
   frameNetwork();
   drawAxisNumbers();
 });
-toolbar.append(copyBtn, lockBtn, viewBtn, fitBtn);
+toolbar.append(copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, fitBtn);
 document.body.append(toolbar);
 refreshLockBtn();
+refreshWireLockBtn();
 refreshViewBtn();
 
 // --- lightbox: click a module's preview to view it full size ----------------
@@ -670,13 +756,48 @@ function render(works) {
     });
     meta.append(title, remove);
     node.append(preview, meta);
-    // One port dot on the top edge — the single line runs through it.
+    const entry = { work, el: node, x: pos.x, y: pos.y };
+    nodes.push(entry);
+    // One port dot on the module — the single line runs through it.
+    // Drag it all the way around the module (top, right, bottom, left) to
+    // move where the line attaches. It sticks to the nearest edge.
     const port = document.createElement("span");
     port.className = "port";
     port.setAttribute("aria-hidden", "true");
+    {
+      const pp = portPoint(entry);
+      port.style.left = `${pp.x - entry.x}px`;
+      port.style.top = `${pp.y - entry.y}px`;
+    }
+    port.style.cursor = wiresLocked ? "default" : "grab";
+    port.style.touchAction = "none";
+    port.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+      if (wiresLocked) return;
+      try { port.setPointerCapture(event.pointerId); } catch {}
+      port.style.cursor = "grabbing";
+      const onMove = (ev) => {
+        const rect = viewport.getBoundingClientRect();
+        const worldX = (ev.clientX - rect.left - x) / scale;
+        const worldY = (ev.clientY - rect.top - y) / scale;
+        const hit = nearestPerimeter(worldX - entry.x, worldY - entry.y);
+        writeWirePortStore(work.id, Math.round(hit.d));
+        port.style.left = `${hit.x}px`;
+        port.style.top = `${hit.y}px`;
+        redrawWires();
+      };
+      const onUp = () => {
+        port.style.cursor = wiresLocked ? "default" : "grab";
+        port.removeEventListener("pointermove", onMove);
+        port.removeEventListener("pointerup", onUp);
+        port.removeEventListener("pointercancel", onUp);
+      };
+      port.addEventListener("pointermove", onMove);
+      port.addEventListener("pointerup", onUp);
+      port.addEventListener("pointercancel", onUp);
+    });
     node.append(port);
-    const entry = { work, el: node, x: pos.x, y: pos.y };
-    nodes.push(entry);
     // Drag a node: wires follow live, layout is saved; dragging starts on the
     // image / title area, never on a video, the editable title or the × button.
     let dragState = null;
@@ -734,6 +855,7 @@ function render(works) {
   restoreSavedView();
   drawAxisNumbers();
   refreshLockBtn();
+  refreshWireLockBtn();
   refreshViewBtn();
 }
 
