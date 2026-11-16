@@ -44,11 +44,14 @@ function draw() {
   const lines = art.split("\n");
   const columns = Math.max(...lines.map(line => line.length));
   // Tile framing (test branch, 2026-11-16): zoom in a little vs the
-  // editor original (padding 20 -> 10) and shift the art up (-4px) and
+  // editor original (padding 20 -> 10 -> 6) and shift the art up (-4px) and
   // left (-6px) per the user, so the whole ASCII picture fills the
-  // 240x132 tile. Font grows 2.67px -> ~3.25px; art stays fully inside
-  // the canvas (right <= ~220, bottom = 118 at cellRatio 0.55-0.65).
-  const padding = 10;
+  // 240x132 tile. Font grows 2.67px -> ~3.25px -> ~3.48px (+7% this step).
+  // Centre is UNCHANGED at (114, 62): the x/y formulas centre the art then
+  // apply the same -6/-4 offsets, so scaling up only grows the art around
+  // that centre. Art stays fully inside the canvas at cellRatio 0.55-0.65
+  // (art 191-226 x 120, x >= 0.96, y = 2, right <= 227, bottom = 122).
+  const padding = 6;
 
   // Fit the artwork inside the canvas.
   textSize(20);

@@ -538,19 +538,23 @@ function mountMovingImageP5Cover(preview) {
   // centers the ASCII art in it, full-bleed, no logo, no header, no offset.
   // NOTE: this is a snapshot of the sketch as of 2026-11-16. If the user
   // edits the sketch in the p5 editor later, re-copy the three files here.
+  // v55 (2026-11-16): position is PERFECT per the user — do not move it.
+  // Zoom in a little more only: sketch padding 10 -> 6, font ~3.48px,
+  // art 191-226x120, centre still (114, 62), art still fully inside the
+  // 240x132 tile. Bumped to v55 to bust the githack cache again.
   // v54 (2026-11-16): the user still saw the p5 logo on the test preview
   // because raw.githack.com was serving STALE main.js (v52, editor iframe)
   // even for ?v=53, while raw.githubusercontent.com served the correct v53
   // hosted sketch — so the ?v= bump alone did not bust githack's cache.
   // This version also zooms the hosted art in (padding 20 -> 10 in
   // sketch.js) and shifts it up 4px / left 6px per the user, so the whole
-  // picture shows centred in the 240x132 tile. The ?v=54 on the iframe
+  // picture shows centred in the 240x132 tile. The ?v=55 on the iframe
   // src busts the iframe cache too. No editor URL anywhere in this file.
   const host = document.createElement("div");
   host.className = "sketch";
   host.style.background = "#000";
   const frame = document.createElement("iframe");
-  frame.src = "./moving-sketch/index.html?v=54";
+  frame.src = "./moving-sketch/index.html?v=55";
   frame.title = "Moving image — p5.js sketch";
   frame.setAttribute("frameborder", "0");
   frame.setAttribute("scrolling", "no");
