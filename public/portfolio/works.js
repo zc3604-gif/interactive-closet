@@ -83,12 +83,12 @@ function workTitle(file) {
 // Node-graph canvas (same vocabulary as the front page: #viewport, #world,
 // #axes, SVG #wires, .node modules).
 // ---------------------------------------------------------------------------
-const NODE_W = 240;
-const NODE_H = 180; // preview 132 + title row ~48
-const PREVIEW_MID = 66; // vertical centre of the preview area
+const NODE_W = 160;
+const NODE_H = 120; // preview 88 + title row ~32
+const PREVIEW_MID = 44; // vertical centre of the preview area
 const COLS = 3;
-const COL_GAP = 280;
-const ROW_GAP = 320;
+const COL_GAP = 200;
+const ROW_GAP = 220;
 
 document.body.classList.add("works-graph");
 
@@ -420,6 +420,51 @@ toolbar.append(copyBtn, lockBtn, fitBtn);
 document.body.append(toolbar);
 refreshLockBtn();
 
+
+// --- lightbox: click a module's preview to view it full size ----------------
+// Fixed overlay on document.body (outside #viewport/#world), so it is never
+// scaled by the canvas zoom/pan. Backdrop click, the x button, or Esc closes.
+const lightbox = document.createElement("div");
+lightbox.className = "works-lightbox";
+lightbox.setAttribute("aria-hidden", "true");
+lightbox.innerHTML = '<button class="lightbox-close" type="button" aria-label="Close">\u00d7</button><figure class="lightbox-figure"><div class="lightbox-media"></div><figcaption class="lightbox-caption"></figcaption></figure>';
+document.body.append(lightbox);
+
+function openLightbox(work, media) {
+  const holder = lightbox.querySelector(".lightbox-media");
+  holder.replaceChildren();
+  const full = document.createElement(media.tagName === "VIDEO" ? "video" : "img");
+  full.src = media.currentSrc || media.src;
+  full.alt = work.title;
+  if (full.tagName === "VIDEO") {
+    full.controls = true;
+    full.loop = true;
+    full.playsInline = true;
+    full.autoplay = true;
+    full.muted = true; // starts silent so it can autoplay; unmute in the controls
+  }
+  holder.append(full);
+  lightbox.querySelector(".lightbox-caption").textContent = work.title;
+  lightbox.classList.add("open");
+  lightbox.setAttribute("aria-hidden", "false");
+}
+
+function closeLightbox() {
+  const holder = lightbox.querySelector(".lightbox-media");
+  const video = holder.querySelector("video");
+  if (video) video.pause();
+  holder.replaceChildren();
+  lightbox.classList.remove("open");
+  lightbox.setAttribute("aria-hidden", "true");
+}
+
+lightbox.addEventListener("click", (event) => {
+  if (event.target === lightbox || event.target.closest(".lightbox-close")) closeLightbox();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && lightbox.classList.contains("open")) closeLightbox();
+});
+
 // --- render: one node per work ----------------------------------------------
 function render(works) {
   for (const url of urls) URL.revokeObjectURL(url);
@@ -449,6 +494,7 @@ function render(works) {
       writePosStore(work.id, pos.x, pos.y);
     }
     slot += 1;
+    let justDragged = false; // set for 50ms after a drag, so a drag never opens the lightbox
     const node = document.createElement("article");
     node.className = "node work-node";
     node.style.left = `${pos.x}px`;
@@ -473,6 +519,10 @@ function render(works) {
       media.playsInline = true;
     }
     preview.append(media);
+    preview.addEventListener("click", () => {
+      if (justDragged) return;
+      openLightbox(work, media);
+    });
     const meta = document.createElement("div");
     meta.className = "meta";
     const title = document.createElement("p");
@@ -514,7 +564,6 @@ function render(works) {
     // Drag a node: wires follow live, layout is saved; dragging starts on the
     // image / title area, never on a video, the editable title or the × button.
     let dragState = null;
-    let justDragged = false;
     node.style.cursor = layoutLocked ? "default" : "grab";
     node.addEventListener("pointerdown", (event) => {
       if (layoutLocked) return;
