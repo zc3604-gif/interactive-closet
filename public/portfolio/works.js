@@ -1,3 +1,20 @@
+// Shared saved state (./saved/state.json): the repo-committed baseline
+// for positions / wire ports / view. It sits UNDER this browser's
+// localStorage: anything dragged here still wins on this device, but a
+// new visitor (or another device) sees the saved layout. Missing file,
+// bad JSON, or a stalled request falls back to the hardcoded
+// DEFAULT_POSITIONS below, then the chain layout — the page must never
+// fail to load because state.json is unavailable. Loaded with top-level
+// await (this file is a module) so the saved layout is the baseline
+// before any node is placed. save-live.js must load before this file
+// (see the works HTML pages); if it didn't, sharedState just stays null.
+let sharedState = null;
+try {
+  sharedState = await window.PortfolioSaveLive.loadSharedState();
+} catch {
+  sharedState = null;
+}
+
 // Works pages as a TouchDesigner-style node graph, like the front page.
 // Each uploaded work is a module, joined by ONE single line that runs through
 // a small port on the top edge of every module, on a canvas you can
@@ -145,7 +162,12 @@ const DEFAULT_POSITIONS = {
     "f2f624ea-6552-458f-8459-839c62d751ff": { x: -135, y: 492 }, // room
   },
 };
-const storeDefaults = DEFAULT_POSITIONS[storeName] || {};
+const storeDefaults = {
+  ...(DEFAULT_POSITIONS[storeName] || {}),
+  // Shared state.json baseline wins over the hardcoded map (it starts
+  // as a copy of it, then moves on as the user saves from the live site).
+  ...((sharedState?.works?.[storeName]?.positions) || {}),
+};
 
 // Dragging starts unlocked for every store (including Models, even though
 // it has a saved default layout), so the user can keep adjusting positions.
@@ -185,6 +207,126 @@ function currentLayout() {
   return Object.fromEntries(nodes.map((n) => [n.work.id, { x: Math.round(n.x), y: Math.round(n.y) }]));
 }
 
+// Effective wire ports for the works on screen: local drags over the
+// shared state.json baseline, normalised to { in, out } per work.
+// Only rendered works are included, so a hidden work's ports drop out
+// of the saved state along with the work itself.
+function currentWirePorts() {
+  return Object.fromEntries(nodes.map((n) => [n.work.id, readWirePorts(n.work.id)]));
+}
+
+// Gather everything "Save to live" sends from a works page: the shared
+// state for this store (positions / wire ports / view) plus an updated
+// catalog.json — renames applied, hidden works removed, local-only
+// uploads added as new entries with their image/video file read out of
+// IndexedDB as base64. Other stores and the front-page modules are left
+// untouched. A file is only included when its new contents differ from
+// the repo copy, so a no-op save sends nothing at all. Returns [] when
+// nothing changed.
+async function collectWorksSaveFiles() {
+  const SL = window.PortfolioSaveLive;
+  // The catalog must load — never write a catalog rebuilt from a failed
+  // fetch, or every other store would be wiped.
+  const catalog = await SL.fetchJson("./saved/catalog.json");
+  if (!catalog || typeof catalog !== "object" || !catalog.works) {
+    throw new Error("couldn't load catalog.json");
+  }
+  // Guard against saving before the page finished rendering: an empty
+  // node list with works in the catalog would wipe the saved positions.
+  if (!nodes.length) {
+    const hasWorks = (catalog.works[storeName] || []).length > 0;
+    let hasLocal = false;
+    try {
+      const localCheck = await withStore("readonly", (store) => store.getAll());
+      hasLocal = localCheck.length > 0;
+    } catch {
+      hasLocal = false;
+    }
+    if (hasWorks || hasLocal) throw new Error("works are still loading — try again in a moment");
+  }
+  const state = await SL.fetchJson("./saved/state.json");
+  const baseState = state && typeof state === "object" ? state : SL.blankState();
+
+  const hidden = hiddenWorkIds();
+  let titles = {};
+  try {
+    titles = JSON.parse(localStorage.getItem("portfolio-work-titles") || "{}") || {};
+  } catch {
+    titles = {};
+  }
+  let local = [];
+  try {
+    local = await withStore("readonly", (store) => store.getAll());
+  } catch {
+    local = [];
+  }
+
+  const updated = (catalog.works[storeName] || [])
+    .filter((work) => !hidden.has(work.id))
+    .map((work) => {
+      const next = { ...work };
+      if (titles[work.id]) next.title = titles[work.id];
+      return next;
+    });
+  const seenIds = new Set(updated.map((work) => work.id));
+  const newFiles = [];
+  for (const work of local) {
+    if (hidden.has(work.id) || seenIds.has(work.id)) continue;
+    if (!work.blob) throw new Error(`"${work.title || work.id}" has no file data to save`);
+    const ext = SL.extForType(work.type, work.blob.name);
+    if (!ext) {
+      throw new Error(
+        `"${work.title || work.id}" has an unsupported file type (${work.type || "unknown"})`
+      );
+    }
+    const type =
+      work.type && work.type !== "application/octet-stream" ? work.type : SL.mimeForExt(ext);
+    const file = `saved/${storeName}/${work.id}.${ext}`;
+    updated.push({ id: work.id, title: work.title, type, created: work.created, file });
+    seenIds.add(work.id);
+    newFiles.push({
+      path: `public/portfolio/${file}`,
+      encoding: "base64",
+      content: await SL.blobToBase64(work.blob),
+    });
+  }
+  updated.sort((a, b) => (b.created || 0) - (a.created || 0));
+  const newCatalog = { ...catalog, works: { ...catalog.works, [storeName]: updated } };
+  const catalogError = SL.validateCatalog(newCatalog);
+  if (catalogError) throw new Error(catalogError);
+
+  const newState = {
+    ...baseState,
+    version: 1,
+    works: {
+      ...(baseState.works || {}),
+      [storeName]: {
+        positions: currentLayout(),
+        wirePorts: currentWirePorts(),
+        view: readSavedView() || baseState.works?.[storeName]?.view || null,
+      },
+    },
+  };
+
+  const files = [];
+  if (JSON.stringify(newState) !== JSON.stringify(state)) {
+    files.push({
+      path: "public/portfolio/saved/state.json",
+      encoding: "utf-8",
+      content: JSON.stringify(newState, null, 2) + "\n",
+    });
+  }
+  if (JSON.stringify(newCatalog) !== JSON.stringify(catalog)) {
+    files.push({
+      path: "public/portfolio/saved/catalog.json",
+      encoding: "utf-8",
+      content: JSON.stringify(newCatalog, null, 2) + "\n",
+    });
+  }
+  files.push(...newFiles);
+  return files;
+}
+
 // Draggable wire ports, like the front page wire ends. Every module used
 // to have ONE dot where the incoming wire and the outgoing wire both met
 // — one knot, two lines. Now an intermediate module (one with a wire in
@@ -214,10 +356,16 @@ function readWirePortStore() {
 function normPortDist(d, fallback) {
   return Number.isFinite(d) ? ((d % PERIMETER) + PERIMETER) % PERIMETER : fallback;
 }
-// Both ports of one work, as { in, out }. Accepts the old single-number
+// Both ports of one work, as { in, out }. Local drags win; the shared
+// state.json baseline fills in the rest. Accepts the old single-number
 // format and partial objects, so nothing the user saved is lost.
 function readWirePorts(workId) {
-  const stored = readWirePortStore()[workId];
+  const local = readWirePortStore()[workId];
+  const shared =
+    local === undefined ? sharedState?.works?.[storeName]?.wirePorts?.[workId] : undefined;
+  return normWirePorts(local !== undefined ? local : shared);
+}
+function normWirePorts(stored) {
   if (Number.isFinite(stored)) {
     const inD = normPortDist(stored, NODE_W / 2);
     return { in: inD, out: normPortDist(inD + PORT_OFFSET, inD + PORT_OFFSET) };
@@ -572,6 +720,10 @@ toolbar.style.cssText = "position:fixed;top:108px;right:12px;z-index:9999;displa
 const copyBtn = document.createElement("button");
 copyBtn.type = "button";
 copyBtn.textContent = "Copy layout";
+const saveBtn = document.createElement("button");
+saveBtn.type = "button";
+saveBtn.textContent = "Save to live";
+saveBtn.title = "Save this layout, renames and new uploads to the live site";
 const wireBtn = document.createElement("button");
 wireBtn.type = "button";
 wireBtn.textContent = "Copy wire positions";
@@ -609,7 +761,7 @@ function refreshWireLockBtn() {
     for (const p of n.el.querySelectorAll(".port")) p.style.cursor = wiresLocked ? "default" : "grab";
   }
 }
-for (const b of [copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, fitBtn]) {
+for (const b of [copyBtn, saveBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, fitBtn]) {
   b.style.cssText = "padding:8px 12px;border:1px solid #111;background:#fff;color:#111;font-size:13px;cursor:pointer;";
 }
 copyBtn.addEventListener("click", async () => {
@@ -617,6 +769,31 @@ copyBtn.addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(text); copyBtn.textContent = "Copied! Paste it to Muse"; }
   catch { window.prompt("Copy your layout and paste it to Muse:", text); copyBtn.textContent = "Copy layout"; return; }
   setTimeout(() => { copyBtn.textContent = "Copy layout"; }, 2500);
+});
+// Save to live: explicit click only, no auto-save on drag. Sends this
+// store's layout / wire ports / view plus the updated catalog (renames,
+// hidden works removed, local uploads added with their files) to the
+// repo through the Cloudflare save relay.
+saveBtn.addEventListener("click", async () => {
+  if (!window.PortfolioSaveLive) {
+    saveBtn.textContent = "Save unavailable — reload the page";
+    return;
+  }
+  let files;
+  try {
+    files = await collectWorksSaveFiles();
+  } catch (error) {
+    saveBtn.textContent = error?.message
+      ? `Save failed — ${error.message}`
+      : "Save failed — try again";
+    return;
+  }
+  if (!files.length) {
+    saveBtn.textContent = "Nothing new to save";
+    setTimeout(() => { saveBtn.textContent = "Save to live"; }, 3000);
+    return;
+  }
+  await window.PortfolioSaveLive.saveFiles(files, saveBtn);
 });
 wireBtn.addEventListener("click", async () => {
   const positions = readWirePortStore();
@@ -663,7 +840,7 @@ fitBtn.addEventListener("click", () => {
   frameNetwork();
   drawAxisNumbers();
 });
-toolbar.append(copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, fitBtn);
+toolbar.append(copyBtn, saveBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, fitBtn);
 document.body.append(toolbar);
 refreshLockBtn();
 refreshWireLockBtn();
