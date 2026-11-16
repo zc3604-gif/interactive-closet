@@ -123,6 +123,25 @@
         "file": "saved/video/548d8537-5dd1-41c7-ba98-4a2295b2d4d4.jpg"
       }
     ],
-    "moving": []
+    "moving": [
+      {
+        "id": "e4c67403-ec71-4635-920a-032078a922ce",
+        "file": "saved/moving/e4c67403-ec71-4635-920a-032078a922ce.gif",
+        "title": "3_5",
+        "created": 1794821476047
+      },
+      {
+        "id": "7c217a2d-abb2-40b1-85c7-628bf265d819",
+        "file": "saved/moving/7c217a2d-abb2-40b1-85c7-628bf265d819.jpg",
+        "title": "Magzine_Cover2",
+        "created": 1794821475047
+      },
+      {
+        "id": "4c289b6b-82e1-48ce-88d5-5f5fe9d63ce2",
+        "file": "saved/moving/4c289b6b-82e1-48ce-88d5-5f5fe9d63ce2.jpg",
+        "title": "Megazine_Cover",
+        "created": 1794821474047
+      }
+    ]
   }
 }
