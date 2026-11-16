@@ -1,0 +1,81 @@
+{
+  "front": {
+    "positions": {
+      "3d": {
+        "x": 76,
+        "y": 427
+      },
+      "artist": {
+        "x": -204,
+        "y": 126
+      },
+      "p5": {
+        "x": 164,
+        "y": 82
+      },
+      "video": {
+        "x": 164,
+        "y": 288
+      },
+      "vj": {
+        "x": 162,
+        "y": 185
+      },
+      "works": {
+        "x": 383,
+        "y": 95
+      }
+    },
+    "view": null,
+    "wirePorts": {}
+  },
+  "version": 1,
+  "works": {
+    "models": {
+      "positions": {
+        "0144f428-15b3-4d3c-9f71-8a5bcd6b3245": {
+          "x": -216,
+          "y": 51
+        },
+        "25bbac23-d41b-4e76-9300-bc623b2cfb79": {
+          "x": -354,
+          "y": -67
+        },
+        "9546bd75-be05-4814-bc25-9c129b03abab": {
+          "x": -219,
+          "y": 315
+        },
+        "f0a84f8e-317b-4c31-b803-5d4789e6f9f8": {
+          "x": -213,
+          "y": 185
+        },
+        "f2f624ea-6552-458f-8459-839c62d751ff": {
+          "x": -135,
+          "y": 492
+        }
+      },
+      "view": null,
+      "wirePorts": {}
+    },
+    "moving": {
+      "positions": {},
+      "view": null,
+      "wirePorts": {}
+    },
+    "p5": {
+      "positions": {},
+      "view": null,
+      "wirePorts": {}
+    },
+    "video": {
+      "positions": {},
+      "view": null,
+      "wirePorts": {}
+    },
+    "vj": {
+      "positions": {},
+      "view": null,
+      "wirePorts": {}
+    }
+  }
+}
