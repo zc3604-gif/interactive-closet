@@ -82,8 +82,18 @@ svg.append(singleWire);
 // works that are already placed.
 const posKey = `portfolio-works-positions-${storeName}`;
 const lockKey = `portfolio-works-locked-${storeName}`;
+// View (camera) lock: zoom + pan only, independent of the layout lock.
+// Locking the view snapshots the current zoom/pan into localStorage per
+// store, so a reload restores the same composition. Modules can still be
+// dragged individually while the view is locked (unless the layout is
+// locked too). Fit view is disabled while the view is locked.
+const viewKey = `portfolio-view-${storeName}`;
+const viewLockKey = `portfolio-view-locked-${storeName}`;
+
 let layoutLocked = false;
 try { layoutLocked = localStorage.getItem(lockKey) === "1"; } catch {}
+let viewLocked = false;
+try { viewLocked = localStorage.getItem(viewLockKey) === "1"; } catch {}
 
 function readPosStore() {
   try {
@@ -171,6 +181,35 @@ function clampView() {
   if (top > vh - margin) y -= top - (vh - margin);
 }
 
+function readSavedView() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(viewKey)) || null;
+    if (!saved || !Number.isFinite(saved.x) || !Number.isFinite(saved.y) || !Number.isFinite(saved.scale)) return null;
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
+function saveCurrentView() {
+  try { localStorage.setItem(viewKey, JSON.stringify({ x: Math.round(x), y: Math.round(y), scale })); } catch {}
+}
+
+function restoreSavedView() {
+  // Re-apply the locked view after a reframe (render / load): frameNetwork()
+  // recomputes the fit, then the saved zoom/pan wins back, clamped to the
+  // zoom range for the current window size.
+  if (!viewLocked) return false;
+  const saved = readSavedView();
+  if (!saved) return false;
+  scale = Math.min(baseScale * 8, Math.max(baseScale, saved.scale));
+  x = saved.x;
+  y = saved.y;
+  clampView();
+  applyView();
+  return true;
+}
+
 function frameNetwork() {
   const span = networkSpan();
   const padX = Math.max(24, viewport.clientWidth * 0.025);
@@ -188,6 +227,7 @@ function frameNetwork() {
 }
 
 function zoomAt(clientX, clientY, nextScale) {
+  if (viewLocked) return;
   const rect = viewport.getBoundingClientRect();
   const px = clientX - rect.left;
   const py = clientY - rect.top;
@@ -238,6 +278,7 @@ viewport.addEventListener(
   "wheel",
   (event) => {
     event.preventDefault();
+    if (viewLocked) return;
     const sideways = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
     if (sideways) {
       x -= event.deltaX || event.deltaY;
@@ -255,6 +296,7 @@ viewport.addEventListener(
 // Drag the background to pan.
 let panState = null;
 viewport.addEventListener("pointerdown", (event) => {
+  if (viewLocked) return;
   if (event.target.closest(".node, .works-toolbar, button, [contenteditable], input, a")) return;
   if (event.button !== undefined && event.button !== 0) return;
   panState = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startViewX: x, startViewY: y };
@@ -302,6 +344,7 @@ window.addEventListener(
       touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
     }
     if (touches.size < 2) return;
+    if (viewLocked) return;
     event.preventDefault();
     const [a, b] = [...touches.values()];
     const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
@@ -332,11 +375,13 @@ window.addEventListener("pointerup", endTouch);
 window.addEventListener("pointercancel", endTouch);
 
 window.addEventListener("resize", () => {
+  // A locked view is a fixed composition: resizing must not reframe it.
+  if (viewLocked) { drawAxisNumbers(); return; }
   frameNetwork();
   drawAxisNumbers();
 });
 
-// --- toolbar: Copy layout / Lock layout / Fit view --------------------------
+// --- toolbar: Copy layout / Lock layout / Lock view / Fit view ----------------
 const toolbar = document.createElement("div");
 toolbar.className = "works-toolbar";
 toolbar.style.cssText = "position:fixed;top:108px;right:12px;z-index:9999;display:flex;gap:8px;";
@@ -345,6 +390,8 @@ copyBtn.type = "button";
 copyBtn.textContent = "Copy layout";
 const lockBtn = document.createElement("button");
 lockBtn.type = "button";
+const viewBtn = document.createElement("button");
+viewBtn.type = "button";
 const fitBtn = document.createElement("button");
 fitBtn.type = "button";
 fitBtn.textContent = "Fit view";
@@ -352,7 +399,20 @@ function refreshLockBtn() {
   lockBtn.textContent = layoutLocked ? "Unlock layout" : "Lock layout";
   for (const n of nodes) if (n.el) n.el.style.cursor = layoutLocked ? "default" : "grab";
 }
-for (const b of [copyBtn, lockBtn, fitBtn]) {
+function refreshViewBtn() {
+  viewBtn.textContent = viewLocked ? "Unlock view" : "Lock view";
+  viewBtn.setAttribute("aria-pressed", viewLocked ? "true" : "false");
+  viewBtn.classList.toggle("locked", viewLocked);
+  viewBtn.style.background = viewLocked ? "#111" : "#fff";
+  viewBtn.style.color = viewLocked ? "#fff" : "#111";
+  // Fit view would move a locked composition, so it is disabled while
+  // the view is locked instead of silently moving it.
+  fitBtn.disabled = viewLocked;
+  fitBtn.style.opacity = viewLocked ? "0.45" : "";
+  fitBtn.style.cursor = viewLocked ? "not-allowed" : "pointer";
+}
+
+for (const b of [copyBtn, lockBtn, viewBtn, fitBtn]) {
   b.style.cssText = "padding:8px 12px;border:1px solid #111;background:#fff;color:#111;font-size:13px;cursor:pointer;";
 }
 copyBtn.addEventListener("click", async () => {
@@ -372,14 +432,21 @@ lockBtn.addEventListener("click", async () => {
     setTimeout(refreshLockBtn, 2500);
   }
 });
+viewBtn.addEventListener("click", () => {
+  viewLocked = !viewLocked;
+  try { localStorage.setItem(viewLockKey, viewLocked ? "1" : "0"); } catch {}
+  if (viewLocked) saveCurrentView();
+  refreshViewBtn();
+});
 fitBtn.addEventListener("click", () => {
+  if (viewLocked) return;
   frameNetwork();
   drawAxisNumbers();
 });
-toolbar.append(copyBtn, lockBtn, fitBtn);
+toolbar.append(copyBtn, lockBtn, viewBtn, fitBtn);
 document.body.append(toolbar);
 refreshLockBtn();
-
+refreshViewBtn();
 
 // --- lightbox: click a module's preview to view it full size ----------------
 // Fixed overlay on document.body (outside #viewport/#world), so it is never
@@ -442,6 +509,7 @@ function render(works) {
     world.append(emptyEl);
     redrawWires();
     frameNetwork();
+    restoreSavedView();
     drawAxisNumbers();
     return;
   }
@@ -571,8 +639,10 @@ function render(works) {
   // One single line through every module's top port, in chain order.
   redrawWires();
   frameNetwork();
+  restoreSavedView();
   drawAxisNumbers();
   refreshLockBtn();
+  refreshViewBtn();
 }
 
 async function showWorks() {
