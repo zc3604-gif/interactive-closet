@@ -37,6 +37,13 @@ const modules = [
   { id: "video", x: 312, y: 184, w: 112, h: 84, small: true, kind: "Fine art", preview: () => previewOp("film") },
 ];
 const posKey = "portfolio-module-positions";
+const lockKey = "portfolio-layout-locked";
+let layoutLocked = false;
+try { layoutLocked = localStorage.getItem(lockKey) === "1"; } catch {}
+
+function currentLayout() {
+  return Object.fromEntries(modules.map((m) => [m.id, { x: Math.round(m.x), y: Math.round(m.y) }]));
+}
 
 function readPosStore() {
   try {
@@ -552,6 +559,7 @@ for (const module of modules) {
   let dragState = null;
   let justDragged = false;
   node.addEventListener("pointerdown", (event) => {
+    if (layoutLocked) return;
     if (event.button !== undefined && event.button !== 0) return;
     if (event.target.closest("[contenteditable], .upload, .media, input, a")) return;
     if (event.pointerType === "touch" && typeof touches !== "undefined" && touches.size >= 2) return;
@@ -605,6 +613,42 @@ for (const module of modules) {
   loadSavedMedia(module.id, preview).then(() => {
     if (module.id !== "p5" && module.id !== "vj" && module.id !== "video" && module.id !== "works" && module.id !== "3d") return loadMedia(module.id, preview);
   });
+}
+
+// Lock / copy layout toolbar: drag first, then lock, then paste the copied positions to Muse.
+{
+  const bar = document.createElement("div");
+  bar.style.cssText = "position:fixed;top:64px;right:12px;z-index:9999;display:flex;gap:8px;";
+  const copyBtn = document.createElement("button");
+  copyBtn.textContent = "Copy layout";
+  const lockBtn = document.createElement("button");
+  function refreshLockBtn() {
+    lockBtn.textContent = layoutLocked ? "Unlock layout" : "Lock layout";
+    for (const m of modules) if (m.el) m.el.style.cursor = layoutLocked ? "default" : "grab";
+  }
+  for (const b of [copyBtn, lockBtn]) {
+    b.style.cssText = "padding:8px 12px;border:1px solid #111;background:#fff;color:#111;font-size:13px;cursor:pointer;";
+  }
+  copyBtn.addEventListener("click", async () => {
+    const text = JSON.stringify(currentLayout(), null, 2);
+    try { await navigator.clipboard.writeText(text); copyBtn.textContent = "Copied! Paste it to Muse"; }
+    catch { window.prompt("Copy your layout and paste it to Muse:", text); copyBtn.textContent = "Copy layout"; return; }
+    setTimeout(() => { copyBtn.textContent = "Copy layout"; }, 2500);
+  });
+  lockBtn.addEventListener("click", async () => {
+    layoutLocked = !layoutLocked;
+    try { localStorage.setItem(lockKey, layoutLocked ? "1" : "0"); } catch {}
+    refreshLockBtn();
+    if (layoutLocked) {
+      const text = JSON.stringify(currentLayout(), null, 2);
+      try { await navigator.clipboard.writeText(text); lockBtn.textContent = "Locked - layout copied"; }
+      catch { lockBtn.textContent = "Locked"; }
+      setTimeout(refreshLockBtn, 2500);
+    }
+  });
+  bar.append(copyBtn, lockBtn);
+  document.body.append(bar);
+  refreshLockBtn();
 }
 
 let x = 0;
