@@ -6,11 +6,29 @@
 // below — the page must never fail to load because state.json is
 // unavailable. Loaded with top-level await (this file is a module) so
 // the layout is settled before any node is built; no flash of the
-// default positions. save-live.js must load before this file (see
-// index.html); if it didn't, sharedState just stays null.
+// default positions. The baseline is fetched directly here: the
+// "Save to live" button and its client (save-live.js) were removed
+// 2026-11-16 because the save relay never worked.
+async function fetchSharedJson(url) {
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+async function loadSharedState() {
+  const state = await fetchSharedJson("./saved/state.json");
+  if (!state || typeof state !== "object" || Array.isArray(state)) return null;
+  return state;
+}
 let sharedState = null;
 try {
-  sharedState = await window.PortfolioSaveLive.loadSharedState();
+  sharedState = await loadSharedState();
 } catch {
   sharedState = null;
 }
@@ -82,95 +100,6 @@ function effectiveFrontWirePorts() {
     if (Number.isFinite(value)) ports[key] = value;
   }
   return ports;
-}
-
-// Gather everything "Save to live" sends from the front page: the shared
-// state (positions / wire ports / view) plus, if the artist module has a
-// locally uploaded cover in IndexedDB, the new cover file and the updated
-// catalog.json modules entry for it. Files the page never displays again
-// (uploads on the p5 / VJ / Fine art / Moving image / Models tiles are
-// stored in IndexedDB but only the artist one is ever read back) are NOT
-// sent. Returns [] when nothing changed. A file is only included when
-// its new contents differ from the repo copy, so a no-op save sends
-// nothing at all.
-async function collectFrontSaveFiles() {
-  const SL = window.PortfolioSaveLive;
-  const state = await SL.fetchJson("./saved/state.json");
-  const base = state && typeof state === "object" ? state : SL.blankState();
-  const newState = {
-    ...base,
-    version: 1,
-    front: {
-      positions: currentLayout(),
-      wirePorts: effectiveFrontWirePorts(),
-      view: readSavedView() || base.front?.view || null,
-    },
-  };
-  const files = [];
-  if (JSON.stringify(newState) !== JSON.stringify(state)) {
-    files.push({
-      path: "public/portfolio/saved/state.json",
-      encoding: "utf-8",
-      content: JSON.stringify(newState, null, 2) + "\n",
-    });
-  }
-  // Artist-module cover uploaded with + : the page shows the IndexedDB
-  // copy whenever one exists, so that copy is what gets saved. If the
-  // stored image is byte-identical to the repo file, it is not re-sent.
-  let artist = null;
-  try {
-    const db = await openMediaDb();
-    artist = await new Promise((resolve, reject) => {
-      const tx = db.transaction("files", "readonly");
-      const request = tx.objectStore("files").get("artist");
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    db.close();
-  } catch {
-    artist = null;
-  }
-  if (artist && artist.blob) {
-    const ext = SL.extForType(artist.type, artist.blob.name);
-    if (!ext) throw new Error("artist image has an unsupported file type");
-    const type =
-      artist.type && artist.type !== "application/octet-stream"
-        ? artist.type
-        : SL.mimeForExt(ext);
-    const file = `saved/modules/artist.${ext}`;
-    const catalog = await SL.fetchJson("./saved/catalog.json");
-    if (!catalog || typeof catalog !== "object") throw new Error("couldn't load catalog.json");
-    const modulesList = [...(catalog.modules || [])];
-    const idx = modulesList.findIndex((entry) => entry.id === "artist");
-    const entry = { id: "artist", type, file };
-    if (idx >= 0) modulesList[idx] = { ...modulesList[idx], ...entry };
-    else modulesList.push(entry);
-    const newCatalog = { ...catalog, modules: modulesList };
-    const catalogError = SL.validateCatalog(newCatalog);
-    if (catalogError) throw new Error(catalogError);
-    if (JSON.stringify(newCatalog) !== JSON.stringify(catalog)) {
-      files.push({
-        path: "public/portfolio/saved/catalog.json",
-        encoding: "utf-8",
-        content: JSON.stringify(newCatalog, null, 2) + "\n",
-      });
-    }
-    const base64 = await SL.blobToBase64(artist.blob);
-    let alreadySaved = false;
-    try {
-      const current = await fetch(`./${file}`, { cache: "no-store" });
-      if (current.ok) {
-        const currentBase64 = await SL.blobToBase64(await current.blob());
-        alreadySaved = currentBase64 === base64;
-      }
-    } catch {
-      alreadySaved = false;
-    }
-    if (!alreadySaved) {
-      files.push({ path: `public/portfolio/${file}`, encoding: "base64", content: base64 });
-    }
-  }
-  return files;
 }
 
 function readPosStore() {
@@ -940,10 +869,6 @@ for (const module of modules) {
   bar.style.cssText = "position:fixed;top:64px;right:12px;z-index:9999;display:flex;gap:8px;";
   const copyBtn = document.createElement("button");
   copyBtn.textContent = "Copy layout";
-  const saveBtn = document.createElement("button");
-  saveBtn.type = "button";
-  saveBtn.textContent = "Save to live";
-  saveBtn.title = "Save this layout (and the artist cover, if changed) to the live site";
   const wireBtn = document.createElement("button");
   wireBtn.textContent = "Copy wire positions";
   const wireLockBtn = document.createElement("button");
@@ -964,7 +889,7 @@ for (const module of modules) {
     wireLockBtn.textContent = wiresLocked ? "Unlock wires" : "Lock wires";
     refreshWireDots();
   }
-  for (const b of [copyBtn, saveBtn, wireBtn, wireLockBtn, lockBtn, viewBtn]) {
+  for (const b of [copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn]) {
     b.style.cssText = "padding:8px 12px;border:1px solid #111;background:#fff;color:#111;font-size:13px;cursor:pointer;";
   }
   copyBtn.addEventListener("click", async () => {
@@ -973,30 +898,7 @@ for (const module of modules) {
     catch { window.prompt("Copy your layout and paste it to Muse:", text); copyBtn.textContent = "Copy layout"; return; }
     setTimeout(() => { copyBtn.textContent = "Copy layout"; }, 2500);
   });
-  // Save to live: explicit click only, no auto-save on drag. Sends the
-  // current layout / wire ports / view (and the artist cover, if one was
-  // uploaded) to the repo through the Cloudflare save relay.
-  saveBtn.addEventListener("click", async () => {
-    if (!window.PortfolioSaveLive) {
-      saveBtn.textContent = "Save unavailable — reload the page";
-      return;
-    }
-    let files;
-    try {
-      files = await collectFrontSaveFiles();
-    } catch (error) {
-      saveBtn.textContent = error?.message
-        ? `Save failed — ${error.message}`
-        : "Save failed — try again";
-      return;
-    }
-    if (!files.length) {
-      saveBtn.textContent = "Nothing new to save";
-      setTimeout(() => { saveBtn.textContent = "Save to live"; }, 3000);
-      return;
-    }
-    await window.PortfolioSaveLive.saveFiles(files, saveBtn);
-  });
+
   wireBtn.addEventListener("click", async () => {
     const positions = readPortStore();
     if (!Object.keys(positions).length) {
@@ -1037,7 +939,7 @@ for (const module of modules) {
     if (viewLocked) saveCurrentView();
     refreshViewBtn();
   });
-  bar.append(copyBtn, saveBtn, wireBtn, wireLockBtn, lockBtn, viewBtn);
+  bar.append(copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn);
   document.body.append(bar);
   refreshLockBtn();
   refreshWireLockBtn();

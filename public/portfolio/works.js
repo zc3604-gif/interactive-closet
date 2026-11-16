@@ -6,11 +6,29 @@
 // DEFAULT_POSITIONS below, then the chain layout — the page must never
 // fail to load because state.json is unavailable. Loaded with top-level
 // await (this file is a module) so the saved layout is the baseline
-// before any node is placed. save-live.js must load before this file
-// (see the works HTML pages); if it didn't, sharedState just stays null.
+// before any node is placed. The baseline is fetched directly here:
+// the "Save to live" button and its client (save-live.js) were removed
+// 2026-11-16 because the save relay never worked.
+async function fetchSharedJson(url) {
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+async function loadSharedState() {
+  const state = await fetchSharedJson("./saved/state.json");
+  if (!state || typeof state !== "object" || Array.isArray(state)) return null;
+  return state;
+}
 let sharedState = null;
 try {
-  sharedState = await window.PortfolioSaveLive.loadSharedState();
+  sharedState = await loadSharedState();
 } catch {
   sharedState = null;
 }
@@ -213,118 +231,6 @@ function currentLayout() {
 // of the saved state along with the work itself.
 function currentWirePorts() {
   return Object.fromEntries(nodes.map((n) => [n.work.id, readWirePorts(n.work.id)]));
-}
-
-// Gather everything "Save to live" sends from a works page: the shared
-// state for this store (positions / wire ports / view) plus an updated
-// catalog.json — renames applied, hidden works removed, local-only
-// uploads added as new entries with their image/video file read out of
-// IndexedDB as base64. Other stores and the front-page modules are left
-// untouched. A file is only included when its new contents differ from
-// the repo copy, so a no-op save sends nothing at all. Returns [] when
-// nothing changed.
-async function collectWorksSaveFiles() {
-  const SL = window.PortfolioSaveLive;
-  // The catalog must load — never write a catalog rebuilt from a failed
-  // fetch, or every other store would be wiped.
-  const catalog = await SL.fetchJson("./saved/catalog.json");
-  if (!catalog || typeof catalog !== "object" || !catalog.works) {
-    throw new Error("couldn't load catalog.json");
-  }
-  // Guard against saving before the page finished rendering: an empty
-  // node list with works in the catalog would wipe the saved positions.
-  if (!nodes.length) {
-    const hasWorks = (catalog.works[storeName] || []).length > 0;
-    let hasLocal = false;
-    try {
-      const localCheck = await withStore("readonly", (store) => store.getAll());
-      hasLocal = localCheck.length > 0;
-    } catch {
-      hasLocal = false;
-    }
-    if (hasWorks || hasLocal) throw new Error("works are still loading — try again in a moment");
-  }
-  const state = await SL.fetchJson("./saved/state.json");
-  const baseState = state && typeof state === "object" ? state : SL.blankState();
-
-  const hidden = hiddenWorkIds();
-  let titles = {};
-  try {
-    titles = JSON.parse(localStorage.getItem("portfolio-work-titles") || "{}") || {};
-  } catch {
-    titles = {};
-  }
-  let local = [];
-  try {
-    local = await withStore("readonly", (store) => store.getAll());
-  } catch {
-    local = [];
-  }
-
-  const updated = (catalog.works[storeName] || [])
-    .filter((work) => !hidden.has(work.id))
-    .map((work) => {
-      const next = { ...work };
-      if (titles[work.id]) next.title = titles[work.id];
-      return next;
-    });
-  const seenIds = new Set(updated.map((work) => work.id));
-  const newFiles = [];
-  for (const work of local) {
-    if (hidden.has(work.id) || seenIds.has(work.id)) continue;
-    if (!work.blob) throw new Error(`"${work.title || work.id}" has no file data to save`);
-    const ext = SL.extForType(work.type, work.blob.name);
-    if (!ext) {
-      throw new Error(
-        `"${work.title || work.id}" has an unsupported file type (${work.type || "unknown"})`
-      );
-    }
-    const type =
-      work.type && work.type !== "application/octet-stream" ? work.type : SL.mimeForExt(ext);
-    const file = `saved/${storeName}/${work.id}.${ext}`;
-    updated.push({ id: work.id, title: work.title, type, created: work.created, file });
-    seenIds.add(work.id);
-    newFiles.push({
-      path: `public/portfolio/${file}`,
-      encoding: "base64",
-      content: await SL.blobToBase64(work.blob),
-    });
-  }
-  updated.sort((a, b) => (b.created || 0) - (a.created || 0));
-  const newCatalog = { ...catalog, works: { ...catalog.works, [storeName]: updated } };
-  const catalogError = SL.validateCatalog(newCatalog);
-  if (catalogError) throw new Error(catalogError);
-
-  const newState = {
-    ...baseState,
-    version: 1,
-    works: {
-      ...(baseState.works || {}),
-      [storeName]: {
-        positions: currentLayout(),
-        wirePorts: currentWirePorts(),
-        view: readSavedView() || baseState.works?.[storeName]?.view || null,
-      },
-    },
-  };
-
-  const files = [];
-  if (JSON.stringify(newState) !== JSON.stringify(state)) {
-    files.push({
-      path: "public/portfolio/saved/state.json",
-      encoding: "utf-8",
-      content: JSON.stringify(newState, null, 2) + "\n",
-    });
-  }
-  if (JSON.stringify(newCatalog) !== JSON.stringify(catalog)) {
-    files.push({
-      path: "public/portfolio/saved/catalog.json",
-      encoding: "utf-8",
-      content: JSON.stringify(newCatalog, null, 2) + "\n",
-    });
-  }
-  files.push(...newFiles);
-  return files;
 }
 
 // Draggable wire ports, like the front page wire ends. Every module used
@@ -720,10 +626,6 @@ toolbar.style.cssText = "position:fixed;top:108px;right:12px;z-index:9999;displa
 const copyBtn = document.createElement("button");
 copyBtn.type = "button";
 copyBtn.textContent = "Copy layout";
-const saveBtn = document.createElement("button");
-saveBtn.type = "button";
-saveBtn.textContent = "Save to live";
-saveBtn.title = "Save this layout, renames and new uploads to the live site";
 const wireBtn = document.createElement("button");
 wireBtn.type = "button";
 wireBtn.textContent = "Copy wire positions";
@@ -761,7 +663,7 @@ function refreshWireLockBtn() {
     for (const p of n.el.querySelectorAll(".port")) p.style.cursor = wiresLocked ? "default" : "grab";
   }
 }
-for (const b of [copyBtn, saveBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, fitBtn]) {
+for (const b of [copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, fitBtn]) {
   b.style.cssText = "padding:8px 12px;border:1px solid #111;background:#fff;color:#111;font-size:13px;cursor:pointer;";
 }
 copyBtn.addEventListener("click", async () => {
@@ -770,31 +672,7 @@ copyBtn.addEventListener("click", async () => {
   catch { window.prompt("Copy your layout and paste it to Muse:", text); copyBtn.textContent = "Copy layout"; return; }
   setTimeout(() => { copyBtn.textContent = "Copy layout"; }, 2500);
 });
-// Save to live: explicit click only, no auto-save on drag. Sends this
-// store's layout / wire ports / view plus the updated catalog (renames,
-// hidden works removed, local uploads added with their files) to the
-// repo through the Cloudflare save relay.
-saveBtn.addEventListener("click", async () => {
-  if (!window.PortfolioSaveLive) {
-    saveBtn.textContent = "Save unavailable — reload the page";
-    return;
-  }
-  let files;
-  try {
-    files = await collectWorksSaveFiles();
-  } catch (error) {
-    saveBtn.textContent = error?.message
-      ? `Save failed — ${error.message}`
-      : "Save failed — try again";
-    return;
-  }
-  if (!files.length) {
-    saveBtn.textContent = "Nothing new to save";
-    setTimeout(() => { saveBtn.textContent = "Save to live"; }, 3000);
-    return;
-  }
-  await window.PortfolioSaveLive.saveFiles(files, saveBtn);
-});
+
 wireBtn.addEventListener("click", async () => {
   const positions = readWirePortStore();
   if (!Object.keys(positions).length) {
@@ -840,7 +718,7 @@ fitBtn.addEventListener("click", () => {
   frameNetwork();
   drawAxisNumbers();
 });
-toolbar.append(copyBtn, saveBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, fitBtn);
+toolbar.append(copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, fitBtn);
 document.body.append(toolbar);
 refreshLockBtn();
 refreshWireLockBtn();
