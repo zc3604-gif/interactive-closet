@@ -240,13 +240,43 @@ function savedSizeFor(moduleId) {
     sy: Number.isFinite(s.sy) && s.sy > 0 ? s.sy : 1,
   };
 }
+// A cover photo must NOT stretch when its tile is stretched: the tile
+// is scaled with a non-uniform transform, which would widen a face
+// sideways. Undo the stretch on the cover itself — size the
+// <img>/<video> to the tile's VISUAL preview size and scale it back by
+// 1/sx, 1/sy, so the photo crops (object-fit: cover) instead of
+// distorting. Called whenever a tile's size is applied, and when a
+// cover is added to an already-resized tile (see showMedia). Text
+// still stretches with the tile; sketches are left alone.
+function fitTileMedia(module) {
+  if (!module.el) return;
+  const preview = module.el.querySelector(".preview");
+  const pw = (preview && preview.offsetWidth) || module.baseW || 240;
+  const ph = (preview && preview.offsetHeight) || 132;
+  const sx = module.sx || 1;
+  const sy = module.sy || 1;
+  for (const media of module.el.querySelectorAll(".media")) {
+    if (sx === 1 && sy === 1) {
+      media.style.width = "";
+      media.style.height = "";
+      media.style.transform = "";
+      media.style.transformOrigin = "";
+      continue;
+    }
+    media.style.width = `${Math.round(pw * sx)}px`;
+    media.style.height = `${Math.round(ph * sy)}px`;
+    media.style.transform = `scale(${1 / sx}, ${1 / sy})`;
+    media.style.transformOrigin = "0 0";
+  }
+}
 // Apply a free resize to a tile: the visible box is a CSS transform
 // (origin top-left), so the layout box stays the natural size while the
 // visible box — and the wire ports, which read renderedW/renderedH —
 // follow the per-axis scale. module.w/h hold the resized logical size,
 // so the view framing (networkSpan) sees the resized tile. The content
 // (cover, sketches, text) stretches with the tile, so nothing inside
-// reflows or clips when a tile is made wider or taller.
+// reflows or clips when a tile is made wider or taller — except the
+// cover photo, which fitTileMedia keeps undistorted (see above).
 function setModuleSize(module, sx, sy) {
   module.sx = sx;
   module.sy = sy;
@@ -258,6 +288,7 @@ function setModuleSize(module, sx, sy) {
     module.el.style.transform = (sx === 1 && sy === 1) ? "" : `scale(${sx}, ${sy})`;
     module.el.style.transformOrigin = "0 0";
   }
+  fitTileMedia(module);
 }
 
 // Baseline from state.json, UNDER localStorage (restored just below,
@@ -767,6 +798,11 @@ const MIN_TILE_W = 56;
 const MIN_TILE_H = 40;
 const MAX_TILE_W = 720;
 const MAX_TILE_SCALE = 3;
+// Set for ~100ms after a resize drag ends, so the click the browser
+// fires after pointerup cannot deselect the module when it lands on
+// empty canvas instead of the handle (see the viewport click handler
+// below) — otherwise the handles vanish after every resize.
+let justResized = false;
 function resizeSizeLimits(module) {
   const bw = (Number.isFinite(module.baseW) && module.baseW > 0) ? module.baseW : 112;
   const bh = (Number.isFinite(module.baseH) && module.baseH > 0) ? module.baseH : 84;
@@ -868,8 +904,21 @@ for (let ci = 0; ci < 4; ci++) {
         portOrigins.push({ link, end, d0 });
       }
     }
-    hit.setPointerCapture(event.pointerId);
+    // The drag listens on window, not on the little hit rect: the rect
+    // is small and moves with the corner while dragging, and the drag
+    // used to depend entirely on setPointerCapture retargeting moves
+    // to it — if capture ever failed, the moves landed on whatever was
+    // under the pointer (tile / empty canvas) and the drag silently
+    // did nothing. That is what the artist's bottom-corner drags hit
+    // in the real-browser check (the drag math itself is fine: the
+    // same drag resizes correctly whenever the moves do reach the
+    // handler). Capture is kept as best-effort only — it can throw
+    // for a pointer the browser does not recognise, and that used to
+    // kill the whole drag before any listener was attached.
+    const dragPointerId = event.pointerId;
+    try { hit.setPointerCapture(dragPointerId); } catch {}
     const onMove = (ev) => {
+      if (ev.pointerId !== undefined && ev.pointerId !== dragPointerId) return;
       const rect = viewport.getBoundingClientRect();
       const wx = (ev.clientX - rect.left - x) / scale;
       const wy = (ev.clientY - rect.top - y) / scale;
@@ -896,16 +945,26 @@ for (let ci = 0; ci < 4; ci++) {
       redrawWires();
     };
     const onUp = () => {
-      hit.removeEventListener("pointermove", onMove);
-      hit.removeEventListener("pointerup", onUp);
-      hit.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
       writeSizeStore(module.id, module.sx || 1, module.sy || 1);
       writePosStore(module.id, Math.round(module.x), Math.round(module.y));
       redrawWires();
+      // Handles back on the (moved) corners — redrawWires already
+      // repositions them, this is belt-and-braces so they are visibly
+      // still on the selected module after the drag.
+      refreshResizeHandles();
+      // The click the browser fires after pointerup can land on empty
+      // canvas instead of the handle; without this the viewport's
+      // empty-click handler would deselect the module and the handles
+      // would vanish after every resize.
+      justResized = true;
+      setTimeout(() => { justResized = false; }, 100);
     };
-    hit.addEventListener("pointermove", onMove);
-    hit.addEventListener("pointerup", onUp);
-    hit.addEventListener("pointercancel", onUp);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
   });
 }
 
@@ -948,6 +1007,11 @@ function showMedia(preview, blob, type, url) {
     media.playsInline = true;
   }
   preview.append(media);
+  // A cover added to an already-resized tile gets the same
+  // counter-stretch as one present at resize time, so it crops
+  // instead of distorting.
+  const module = modules.find((m) => m.el && m.el.contains(preview));
+  if (module) fitTileMedia(module);
 }
 
 async function saveMedia(moduleId, file) {
@@ -2010,6 +2074,10 @@ function zoomAt(clientX, nextScale) {
 // port-dot clicks are guarded below too.
 viewport.addEventListener("click", (event) => {
   if (!selectedWireKey && !selectedModuleId) return;
+  // A resize drag just ended: swallow the click the browser fires
+  // after pointerup, so it cannot deselect the still-selected module
+  // (and hide its handles) when it lands on empty canvas.
+  if (justResized) return;
   if (event.target.closest(".node, .wire-handle-hit, .wire-handle, .wire-hit, .resize-handle")) return;
   selectWire(null);
   selectModule(null);
