@@ -171,6 +171,14 @@ const viewLockKey = `portfolio-view-locked-${storeName}`;
 // A work's position comes from localStorage first, then this map, then the
 // normal chain layout — so a new visitor sees the saved layout, while the
 // user's own dragged positions in their browser still win.
+// Exception: a localStorage entry that sits exactly on the chain grid and
+// is not marked as a real drag is an auto-generated fallback an earlier
+// render persisted (render() used to write the fallback into localStorage,
+// where it then outranked every repo default saved afterwards). If the repo
+// now has a default for that work, the default wins and the stale entry is
+// dropped — otherwise a layout saved to state.json could never reach a
+// browser that had already rendered the page once. Real drags are marked
+// manual: 1 by writePosStore and always win.
 const DEFAULT_POSITIONS = {
   models: {
     "25bbac23-d41b-4e76-9300-bc623b2cfb79": { x: -354, y: -67 }, // LC FAR
@@ -206,9 +214,23 @@ function readPosStore() {
   }
 }
 
-function writePosStore(workId, px, py) {
+function writePosStore(workId, px, py, manual) {
+  // manual=true only for a real user drag. An auto-generated chain position
+  // is NEVER written here (see render()): it used to be, and a persisted
+  // chain grid then outranked every repo default saved afterwards, so a
+  // layout saved to state.json could never reach a browser that had already
+  // rendered the page once (Fine Art, 2026-11-17).
   const store = readPosStore();
-  store[workId] = { x: px, y: py };
+  store[workId] = manual ? { x: px, y: py, manual: 1 } : { x: px, y: py };
+  try {
+    localStorage.setItem(posKey, JSON.stringify(store));
+  } catch {}
+}
+
+function forgetPosStore(workId) {
+  const store = readPosStore();
+  if (!(workId in store)) return;
+  delete store[workId];
   try {
     localStorage.setItem(posKey, JSON.stringify(store));
   } catch {}
@@ -216,6 +238,17 @@ function writePosStore(workId, px, py) {
 
 function chainPos(slot) {
   return { x: (slot % COLS) * COL_GAP, y: Math.floor(slot / COLS) * ROW_GAP };
+}
+
+// True for exactly the points chainPos() can produce: x a multiple of
+// COL_GAP inside the first COLS columns, y a non-negative multiple of
+// ROW_GAP. Used to recognise an auto-generated fallback that an earlier
+// render persisted into the position store.
+function isChainPoint(pos) {
+  return (
+    Number.isInteger(pos.x / COL_GAP) && pos.x >= 0 && pos.x < COLS * COL_GAP &&
+    Number.isInteger(pos.y / ROW_GAP) && pos.y >= 0
+  );
 }
 
 let nodes = []; // { work, el, x, y }
@@ -806,12 +839,24 @@ function render(works) {
   let slot = 0;
   for (const work of works) {
     let pos = saved[work.id];
+    // A stored position that sits exactly on the chain grid and is not
+    // marked as a real drag is an auto-generated fallback an earlier render
+    // persisted (see writePosStore). It must not outrank a repo default
+    // saved afterwards — that is why the Fine Art layout saved to
+    // state.json never showed up in a browser that had rendered this page
+    // before. Drop the stale entry and use the default; a real drag
+    // (manual: 1) always wins.
+    if (pos && !pos.manual && isChainPoint(pos) && storeDefaults[work.id]) {
+      pos = storeDefaults[work.id];
+      forgetPosStore(work.id);
+    }
     if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
       pos = storeDefaults[work.id];
     }
     if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
       pos = chainPos(slot);
-      writePosStore(work.id, pos.x, pos.y);
+      // Deliberately NOT persisted: persisting the fallback is what let a
+      // stale grid outrank repo defaults saved later (see above).
     }
     slot += 1;
     let justDragged = false; // set for 50ms after a drag, so a drag never opens the lightbox
@@ -979,7 +1024,7 @@ function render(works) {
       if (!dragState || (event.pointerId !== undefined && event.pointerId !== dragState.pointerId)) return;
       node.style.cursor = layoutLocked ? "default" : "grab";
       if (dragState.moved) {
-        writePosStore(work.id, Math.round(entry.x), Math.round(entry.y));
+        writePosStore(work.id, Math.round(entry.x), Math.round(entry.y), true);
         justDragged = true;
         setTimeout(() => { justDragged = false; }, 50);
       }
