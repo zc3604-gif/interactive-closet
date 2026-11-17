@@ -197,6 +197,46 @@ function writePosStore(moduleId, px, py) {
   } catch {}
 }
 
+// Resized module sizes (see the resize-handles section below): a scale
+// factor per module id, 1 = natural size. The shared state.json baseline
+// (front.sizes) sits UNDER this browser's localStorage, same as
+// positions — a repo-saved size can be added later without a code change.
+const sizeKey = "portfolio-module-sizes";
+function readSizeStore() {
+  try { return JSON.parse(localStorage.getItem(sizeKey)) || {}; } catch { return {}; }
+}
+function writeSizeStore(moduleId, scale) {
+  const store = readSizeStore();
+  if (Number.isFinite(scale) && Math.abs(scale - 1) > 0.001) store[moduleId] = Math.round(scale * 1000) / 1000;
+  else delete store[moduleId];
+  try { localStorage.setItem(sizeKey, JSON.stringify(store)); } catch {}
+}
+function savedScaleFor(moduleId) {
+  let s = null;
+  const shared = sharedState?.front?.sizes?.[moduleId];
+  if (Number.isFinite(shared)) s = shared;
+  else if (shared && Number.isFinite(shared.scale)) s = shared.scale;
+  const local = readSizeStore()[moduleId];
+  if (Number.isFinite(local)) s = local;
+  return Number.isFinite(s) && s > 0 ? s : 1;
+}
+// Apply a scale to a tile: the visible box is a CSS transform (origin
+// top-left), so the layout box stays the natural size while the visible
+// box — and the wire ports, which read renderedW/renderedH — follow the
+// scale. module.w/h hold the scaled logical size, so the view framing
+// (networkSpan) sees the resized tile.
+function setModuleScale(module, s) {
+  module.scale = s;
+  const bw = (Number.isFinite(module.baseW) && module.baseW > 0) ? module.baseW : module.w;
+  const bh = (Number.isFinite(module.baseH) && module.baseH > 0) ? module.baseH : module.h;
+  module.w = Math.round(bw * s);
+  module.h = Math.round(bh * s);
+  if (module.el) {
+    module.el.style.transform = s === 1 ? "" : `scale(${s})`;
+    module.el.style.transformOrigin = "0 0";
+  }
+}
+
 // Baseline from state.json, UNDER localStorage (restored just below,
 // so a dragged position in this browser still wins over the shared one).
 if (sharedState && sharedState.front && sharedState.front.positions) {
@@ -361,15 +401,21 @@ function writePortStore(linkKey, end, px) {
     localStorage.removeItem(oldestPortKey);
   } catch {}
 })();
+// Rendered size follows the resize scale: the tile's layout box stays
+// its natural size (the scale is a transform), so the scaled size is
+// natural size x scale. baseW/baseH are measured at build time; before
+// that, offsetWidth (unscaled) or the data size do the same job.
 function renderedW(node) {
-  const elW = node.el && node.el.offsetWidth;
-  if (Number.isFinite(elW) && elW > 0) return elW;
-  return Number.isFinite(node.w) && node.w > 0 ? node.w : 112;
+  const s = node.scale || 1;
+  const base = (Number.isFinite(node.baseW) && node.baseW > 0) ? node.baseW
+    : (node.el && node.el.offsetWidth) || (Number.isFinite(node.w) ? node.w / s : 112);
+  return base * s;
 }
 function renderedH(node) {
-  const elH = node.el && node.el.offsetHeight;
-  if (Number.isFinite(elH) && elH > 0) return elH;
-  return Number.isFinite(node.h) && node.h > 0 ? node.h : 84;
+  const s = node.scale || 1;
+  const base = (Number.isFinite(node.baseH) && node.baseH > 0) ? node.baseH
+    : (node.el && node.el.offsetHeight) || (Number.isFinite(node.h) ? node.h / s : 84);
+  return base * s;
 }
 function perim(node) {
   return 2 * (renderedW(node) + renderedH(node));
@@ -526,6 +572,7 @@ function selectModule(id) {
     const el = byId[id] && byId[id].el;
     if (el) { el.style.outline = "3px solid #111"; el.style.outlineOffset = "2px"; }
   }
+  refreshResizeHandles();
 }
 function deleteSelectedModule() {
   const id = selectedModuleId;
@@ -661,6 +708,155 @@ function refreshWireDots() {
     h.dot.style.cursor = wiresLocked ? "default" : "grab";
     h.hit.style.cursor = wiresLocked ? "default" : "grab";
   }
+}
+
+// ---- Resizing a module (front page only) ----
+// Left-click a module to select it and four little "+" handles appear at
+// its corners; drag a corner to resize the tile proportionally — the
+// aspect ratio is kept and the opposite corner stays put, so the tile
+// grows/shrinks around it. Works for built-ins and custom modules
+// alike. Lock layout locks resizing too, like dragging. Sizes persist
+// in localStorage (portfolio-module-sizes, see the size store near the
+// top) and are included in Copy layout.
+// The handles live in the same world-space overlay svg as the wire dots,
+// so they sit above the tiles and follow the view; a pointer down on a
+// handle never reaches the tile, so a resize can never start a body
+// drag by accident.
+const resizeHandles = [];
+const MIN_TILE_W = 56;
+const MAX_TILE_W = 720;
+const MAX_TILE_SCALE = 3;
+function resizeScaleLimits(module) {
+  const bw = (Number.isFinite(module.baseW) && module.baseW > 0) ? module.baseW : 112;
+  return {
+    min: Math.max(0.35, MIN_TILE_W / bw),
+    max: Math.min(MAX_TILE_SCALE, MAX_TILE_W / bw),
+  };
+}
+function resizeCorners(module) {
+  const w = renderedW(module);
+  const h = renderedH(module);
+  return [
+    { cx: module.x, cy: module.y, anchor: "br", cursor: "nwse-resize" },
+    { cx: module.x + w, cy: module.y, anchor: "bl", cursor: "nesw-resize" },
+    { cx: module.x + w, cy: module.y + h, anchor: "tl", cursor: "nwse-resize" },
+    { cx: module.x, cy: module.y + h, anchor: "tr", cursor: "nesw-resize" },
+  ];
+}
+function refreshResizeHandles() {
+  const module = selectedModuleId ? byId[selectedModuleId] : null;
+  const show = !!module && !!module.el && !layoutLocked && !wirePicking;
+  const corners = show ? resizeCorners(module) : [];
+  for (let i = 0; i < resizeHandles.length; i++) {
+    const h = resizeHandles[i];
+    if (!show) { h.g.style.display = "none"; continue; }
+    h.g.style.display = "";
+    h.g.setAttribute("transform", `translate(${corners[i].cx} ${corners[i].cy})`);
+    h.hit.style.cursor = corners[i].cursor;
+  }
+}
+for (let ci = 0; ci < 4; ci++) {
+  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g.setAttribute("class", "resize-handle");
+  g.style.display = "none";
+  const hit = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  hit.setAttribute("class", "resize-handle-hit");
+  hit.setAttribute("x", "-13");
+  hit.setAttribute("y", "-13");
+  hit.setAttribute("width", "26");
+  hit.setAttribute("height", "26");
+  hit.setAttribute("fill", "transparent");
+  hit.style.pointerEvents = "all";
+  const mark = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  mark.setAttribute("class", "resize-handle-mark");
+  mark.style.pointerEvents = "none";
+  const box = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  box.setAttribute("x", "-6");
+  box.setAttribute("y", "-6");
+  box.setAttribute("width", "12");
+  box.setAttribute("height", "12");
+  box.setAttribute("fill", "#fff");
+  box.setAttribute("stroke", "#111");
+  box.setAttribute("stroke-width", "1.5");
+  const barH = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  barH.setAttribute("x1", "-3.5"); barH.setAttribute("y1", "0");
+  barH.setAttribute("x2", "3.5"); barH.setAttribute("y2", "0");
+  barH.setAttribute("stroke", "#111"); barH.setAttribute("stroke-width", "1.5");
+  const barV = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  barV.setAttribute("x1", "0"); barV.setAttribute("y1", "-3.5");
+  barV.setAttribute("x2", "0"); barV.setAttribute("y2", "3.5");
+  barV.setAttribute("stroke", "#111"); barV.setAttribute("stroke-width", "1.5");
+  mark.append(box, barH, barV);
+  g.append(hit, mark);
+  handlesSvg.append(g);
+  resizeHandles.push({ g, hit, corner: ci });
+  hit.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    const module = selectedModuleId ? byId[selectedModuleId] : null;
+    if (!module || !module.el || layoutLocked) return;
+    const corner = resizeCorners(module)[ci];
+    const anchorX = (corner.anchor === "br" || corner.anchor === "tr") ? module.x + renderedW(module) : module.x;
+    const anchorY = (corner.anchor === "bl" || corner.anchor === "br") ? module.y + renderedH(module) : module.y;
+    const baseW = (Number.isFinite(module.baseW) && module.baseW > 0) ? module.baseW : renderedW(module);
+    const baseH = (Number.isFinite(module.baseH) && module.baseH > 0) ? module.baseH : renderedH(module);
+    const baseDiag = Math.hypot(baseW, baseH);
+    const startScale = module.scale || 1;
+    const limits = resizeScaleLimits(module);
+    // Wire ports keep their RELATIVE spot on the perimeter while the
+    // tile resizes: each stored distance is scaled by the same ratio as
+    // the tile, live during the drag, so the dots stay glued to the
+    // edge instead of drifting and snapping back at the end.
+    const portOrigins = [];
+    for (const link of routed) {
+      for (const end of ["from", "to"]) {
+        const id = end === "from" ? link.from : link.to;
+        if (id !== module.id) continue;
+        const key = link.from + ">" + link.to + ":" + end;
+        const stored = readPortStore()[key];
+        const shared = sharedState?.front?.wirePorts?.[key];
+        const d0 = Number.isFinite(stored) ? stored
+          : Number.isFinite(shared) ? shared
+          : defaultPortDist(module, link, end);
+        portOrigins.push({ link, end, d0 });
+      }
+    }
+    hit.setPointerCapture(event.pointerId);
+    const onMove = (ev) => {
+      const rect = viewport.getBoundingClientRect();
+      const wx = (ev.clientX - rect.left - x) / scale;
+      const wy = (ev.clientY - rect.top - y) / scale;
+      // Proportional resize: the scale follows the pointer's distance
+      // from the anchored (opposite) corner, so the tile keeps its
+      // aspect ratio no matter which way the corner is dragged.
+      let s = Math.hypot(wx - anchorX, wy - anchorY) / baseDiag;
+      if (!Number.isFinite(s) || s <= 0) return;
+      s = Math.min(limits.max, Math.max(limits.min, s));
+      const ratio = s / startScale;
+      setModuleScale(module, s);
+      const w = renderedW(module);
+      const h = renderedH(module);
+      if (corner.anchor === "br" || corner.anchor === "tr") module.x = anchorX - w;
+      if (corner.anchor === "bl" || corner.anchor === "br") module.y = anchorY - h;
+      module.el.style.left = `${module.x}px`;
+      module.el.style.top = `${module.y}px`;
+      for (const p of portOrigins) {
+        writePortStore(p.link.from + ">" + p.link.to, p.end, Math.round(p.d0 * ratio));
+      }
+      redrawWires();
+    };
+    const onUp = () => {
+      hit.removeEventListener("pointermove", onMove);
+      hit.removeEventListener("pointerup", onUp);
+      hit.removeEventListener("pointercancel", onUp);
+      writeSizeStore(module.id, module.scale || 1);
+      writePosStore(module.id, Math.round(module.x), Math.round(module.y));
+      redrawWires();
+    };
+    hit.addEventListener("pointermove", onMove);
+    hit.addEventListener("pointerup", onUp);
+    hit.addEventListener("pointercancel", onUp);
+  });
 }
 
 const textKey = "portfolio-module-text";
@@ -1258,12 +1454,24 @@ function buildModule(module) {
     });
   }
   world.append(node);
+  // Natural (unscaled) size, measured once the tile is in the page:
+  // the resize scale multiplies this, and the wire ports read it back
+  // through renderedW/renderedH.
+  module.baseW = node.offsetWidth || module.w;
+  module.baseH = node.offsetHeight || module.h;
   loadSavedMedia(module.id, preview).then(() => {
     if (module.id !== "p5" && module.id !== "vj" && module.id !== "video" && module.id !== "works" && module.id !== "3d") return loadMedia(module.id, preview);
   });
 }
 
 for (const module of modules) buildModule(module);
+
+// Apply any saved resize scales (repo baseline under localStorage),
+// before the first framing — so the view fits the resized tiles.
+for (const module of modules) {
+  const s = savedScaleFor(module.id);
+  if (s !== 1) setModuleScale(module, s);
+}
 
 // ---- Custom modules + custom wires ("Add module" / "Add wire") ----
 // Front page only, no outside service: new tiles and wires live in the
@@ -1452,6 +1660,16 @@ async function moduleHasCover(moduleId) {
 // user knows to send the image file along for saving to the repo).
 async function layoutCopyText() {
   const layout = currentLayout();
+  // Resized modules: scale + logical size, so Muse can save them as
+  // repo defaults (state.json front.sizes) later. Only modules whose
+  // size actually changed are listed; the rest use the code defaults.
+  const sizes = {};
+  for (const m of modules) {
+    if (m.scale && Math.abs(m.scale - 1) > 0.001) {
+      sizes[m.id] = { scale: Math.round(m.scale * 1000) / 1000, w: Math.round(renderedW(m)), h: Math.round(renderedH(m)) };
+    }
+  }
+  if (Object.keys(sizes).length) layout.sizes = sizes;
   const customs = modules.filter((m) => m.custom);
   if (customs.length) {
     layout.customModules = [];
@@ -1461,6 +1679,7 @@ async function layoutCopyText() {
         title: m.title || m.kind,
         x: Math.round(m.x),
         y: Math.round(m.y),
+        scale: Math.round((m.scale || 1) * 1000) / 1000,
         hasCover: await moduleHasCover(m.id),
       });
     }
@@ -1550,6 +1769,8 @@ async function layoutCopyText() {
     layoutLocked = !layoutLocked;
     try { localStorage.setItem(lockKey, layoutLocked ? "1" : "0"); } catch {}
     refreshLockBtn();
+    // Locking the layout locks resizing too, like dragging.
+    refreshResizeHandles();
     if (layoutLocked) {
       const text = await layoutCopyText();
       try { await navigator.clipboard.writeText(text); lockBtn.textContent = "Locked - layout copied"; }
@@ -1662,6 +1883,7 @@ function redrawWires() {
     h.hit.setAttribute("cx", pos.x);
     h.hit.setAttribute("cy", pos.y);
   }
+  refreshResizeHandles();
 }
 
 function applyView() {
@@ -1735,7 +1957,7 @@ function zoomAt(clientX, nextScale) {
 // port-dot clicks are guarded below too.
 viewport.addEventListener("click", (event) => {
   if (!selectedWireKey && !selectedModuleId) return;
-  if (event.target.closest(".node, .wire-handle-hit, .wire-handle, .wire-hit")) return;
+  if (event.target.closest(".node, .wire-handle-hit, .wire-handle, .wire-hit, .resize-handle")) return;
   selectWire(null);
   selectModule(null);
 });
