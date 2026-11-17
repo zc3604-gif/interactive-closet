@@ -244,6 +244,17 @@ function currentWirePorts() {
 // Stored per store, per work id, as { in, out }: each a distance in
 // pixels along the module's perimeter, clockwise from the top-left
 // corner: top 0..120, right 120..212, bottom 212..332, left 332..424.
+// The distance is measured along the module's OWN (inner) border — the
+// 120x92 box — so a saved position keeps its exact spot along the edge.
+// Where the dot is DRAWN is different: the double frame puts a second
+// black line 4-5px outside the module's border (box-shadow: 0 0 0 4px
+// #fff, 0 0 0 5px #111), and the dots sit centred on that OUTER line,
+// 4.5px straight out from the inner edge. So portPointAt() takes the
+// inner-perimeter point and pushes it outwards along the edge normal;
+// nothing stored ever changes, the dot just moves off the inner border
+// onto the outer one. Dragging still works off the inner rectangle
+// (nearestPerimeter), so a dot grabbed on the outer line tracks the
+// pointer without jitter.
 // Backwards compatible: an old stored value was a single number — it is
 // read as the "in" port, and the "out" port starts PORT_OFFSET px further
 // along the perimeter, so the user's existing dot stays exactly where
@@ -294,10 +305,12 @@ function portDist(entry, role = "in") {
   return readWirePorts(entry.work.id)[role];
 }
 function portPointAt(entry, d) {
-  if (d < NODE_W) return { x: entry.x + d, y: entry.y };
-  if (d < NODE_W + NODE_H) return { x: entry.x + NODE_W, y: entry.y + (d - NODE_W) };
-  if (d < 2 * NODE_W + NODE_H) return { x: entry.x + (2 * NODE_W + NODE_H - d), y: entry.y + NODE_H };
-  return { x: entry.x, y: entry.y + (PERIMETER - d) };
+  // Centre of the outer frame line, in px outside the module's own edge.
+  const OUT = 4.5;
+  if (d < NODE_W) return { x: entry.x + d, y: entry.y - OUT };
+  if (d < NODE_W + NODE_H) return { x: entry.x + NODE_W + OUT, y: entry.y + (d - NODE_W) };
+  if (d < 2 * NODE_W + NODE_H) return { x: entry.x + (2 * NODE_W + NODE_H - d), y: entry.y + NODE_H + OUT };
+  return { x: entry.x - OUT, y: entry.y + (PERIMETER - d) };
 }
 function portPoint(entry, role = "in") {
   return portPointAt(entry, portDist(entry, role));
@@ -897,8 +910,11 @@ function render(works) {
           const worldY = (ev.clientY - rect.top - y) / scale;
           const hit = nearestPerimeter(worldX - entry.x, worldY - entry.y);
           writeWirePortStore(work.id, role, Math.round(hit.d));
-          port.style.left = `${hit.x}px`;
-          port.style.top = `${hit.y}px`;
+          // Position through portPointAt so the dot stays on the outer
+          // frame line while it is dragged, not the inner border.
+          const pp = portPointAt(entry, hit.d);
+          port.style.left = `${pp.x - entry.x}px`;
+          port.style.top = `${pp.y - entry.y}px`;
           redrawWires();
         };
         const onUp = () => {
