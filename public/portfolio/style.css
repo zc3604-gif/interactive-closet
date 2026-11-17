@@ -434,9 +434,11 @@ body.works-graph .add-work {
 /* One uploaded work = one front-page-style module, smaller still (120px wide).
    Double frame: a second square around the whole module, outside the
    module's own border. The outer line is the same thin 1px black as the
-   inner border, with a white gap between the two squares. Purely visual:
-   it adds no size to the module, so the wire-port geometry in works.js /
-   p5-works.js (120x92) is unchanged. Front-page modules are untouched. */
+   inner border, with a white gap between the two squares. The wire-port
+   dots sit centred on that OUTER line: works.js still measures a saved
+   port position along the inner 120x92 perimeter, and pushes the drawn
+   dot 4.5px straight outwards onto the outer line, so saved positions
+   keep their exact spot along the edge. Front-page modules are untouched. */
 .work-node {
   width: 120px;
   background: rgba(255, 255, 255, 0.92);
