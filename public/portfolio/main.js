@@ -276,25 +276,49 @@ function rebuildRouted() {
 }
 rebuildRouted();
 
-// Draggable wire ends: each wire end has a saved position (pixels down
-// from the top of its module) in localStorage, so the user can grab the
-// little dot at the end of a wire and slide it up/down the module edge.
-// The range is the module's REAL rendered height (module.el.offsetHeight),
-// not the 292px in the data — the artist tile's long body text makes it
-// render ~400px tall, which is why a dot clamped to 292px stopped short
-// of the tile's real bottom edge, inside the text.
-// Positions saved by the earlier test versions were fractions of the
-// 132px/52px preview strip, so they are migrated once to pixels on load.
-const portKey = "portfolio-wire-ports-v2";
-// Lock for the wire ends, mirroring Lock layout: when locked, the dots
-// cannot be dragged at all. Starts unlocked so the user can keep
-// adjusting; locking also copies the positions, like Lock layout does.
-const wireLockKey = "portfolio-wires-locked";
-let wiresLocked = false;
-try { wiresLocked = localStorage.getItem(wireLockKey) === "1"; } catch {}
-const oldPortKey = "portfolio-wire-ports";
+// Draggable wire ends: each wire end has a saved position in localStorage
+// as a distance in pixels along its module's perimeter, clockwise from the
+// top-left corner: top 0..w, right w..w+h, bottom w+h..2w+h, left
+// 2w+h..2(w+h). Grab the little dot at the end of a wire and drag it all
+// the way AROUND the module — it sticks to whichever edge the pointer is
+// nearest, rounding the corners as it travels.
+// The range uses the module's REAL rendered size (offsetWidth /
+// offsetHeight), not the 292px in the data — the artist tile's long body
+// text makes it render ~400px tall, which is why a dot clamped to 292px
+// stopped short of the tile's real bottom edge, inside the text.
+// Positions saved by earlier versions were vertical offsets (pixels down
+// one side: the right edge for a "from" end, the left edge for a "to"
+// end), stored under portfolio-wire-ports-v2. They are converted to
+// perimeter distances at read time, so every dot stays exactly where the
+// user put it — nothing is reset. Positions saved by the earliest test
+// versions were fractions of the 132px/52px preview strip, migrated once
+// to vertical pixels on load (see migratePortStore below).
+const portKey = "portfolio-wire-ports-v3";
+// The previous store (vertical offsets) is read-only now: readPortStore
+// converts its values to perimeter distances on the fly.
+const oldPortKey = "portfolio-wire-ports-v2";
+const oldestPortKey = "portfolio-wire-ports";
+function readRawPortStore(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || {}; } catch { return {}; }
+}
+// Effective port store, in perimeter distances: v3 values win; v2
+// vertical offsets are converted (right edge for "from", left edge for
+// "to") using the module's current rendered size, so Copy wire positions
+// and redraws all see one format.
 function readPortStore() {
-  try { return JSON.parse(localStorage.getItem(portKey)) || {}; } catch { return {}; }
+  const merged = {};
+  for (const [k, v] of Object.entries(readRawPortStore(oldPortKey))) {
+    if (!Number.isFinite(v)) continue;
+    const [pair, end] = k.split(":");
+    const [from, to] = pair.split(">");
+    const node = byId[end === "from" ? from : to];
+    if (!node) continue;
+    merged[k] = verticalToPerim(node, end, v);
+  }
+  for (const [k, v] of Object.entries(readRawPortStore(portKey))) {
+    if (Number.isFinite(v)) merged[k] = v;
+  }
+  return merged;
 }
 function writePortStore(linkKey, end, px) {
   const store = readPortStore();
@@ -303,8 +327,11 @@ function writePortStore(linkKey, end, px) {
 }
 (function migratePortStore() {
   try {
-    if (localStorage.getItem(portKey)) return;
-    const old = JSON.parse(localStorage.getItem(oldPortKey) || "{}");
+    // Earliest test versions stored fractions of the 132px/52px preview
+    // strip; convert them once to vertical pixels in the v2 store, where
+    // readPortStore picks them up as perimeter distances.
+    if (localStorage.getItem(oldPortKey)) return;
+    const old = JSON.parse(localStorage.getItem(oldestPortKey) || "{}");
     const next = {};
     for (const [k, frac] of Object.entries(old)) {
       if (!Number.isFinite(frac)) continue;
@@ -315,28 +342,84 @@ function writePortStore(linkKey, end, px) {
       // Old values were fractions of the preview strip (132px large / 52px small).
       next[k] = Math.round(frac * (node.small ? 52 : 132));
     }
-    if (Object.keys(next).length) localStorage.setItem(portKey, JSON.stringify(next));
-    localStorage.removeItem(oldPortKey);
+    if (Object.keys(next).length) localStorage.setItem(oldPortKey, JSON.stringify(next));
+    localStorage.removeItem(oldestPortKey);
   } catch {}
 })();
+function renderedW(node) {
+  return node.el && node.el.offsetWidth ? node.el.offsetWidth : node.w;
+}
 function renderedH(node) {
   return node.el && node.el.offsetHeight ? node.el.offsetHeight : node.h;
 }
+function perim(node) {
+  return 2 * (renderedW(node) + renderedH(node));
+}
+function normPortDist(node, d, fallback) {
+  const p = perim(node);
+  return Number.isFinite(d) ? ((d % p) + p) % p : fallback;
+}
+// A vertical offset (pixels down one side) as a perimeter distance: the
+// "from" end lives on the right edge, the "to" end on the left edge.
+function verticalToPerim(node, end, px) {
+  const w = renderedW(node);
+  const h = renderedH(node);
+  const y = Math.min(h, Math.max(0, px));
+  return end === "from" ? w + y : 2 * (w + h) - y;
+}
+// Point on the module's perimeter at distance d clockwise from top-left.
+function portPointAt(node, d) {
+  const w = renderedW(node);
+  const h = renderedH(node);
+  d = normPortDist(node, d, w / 2);
+  if (d < w) return { x: node.x + d, y: node.y };
+  if (d < w + h) return { x: node.x + w, y: node.y + (d - w) };
+  if (d < 2 * w + h) return { x: node.x + (2 * w + h - d), y: node.y + h };
+  return { x: node.x, y: node.y + (2 * (w + h) - d) };
+}
+// Nearest point on the module's perimeter to a pointer (module-local
+// coords), as a perimeter distance. Dragging the dot sticks it to
+// whichever edge the pointer is closest to, so it rounds corners as you
+// drag it around the module.
+function nearestPerimeter(node, px, py) {
+  const w = renderedW(node);
+  const h = renderedH(node);
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const cands = [
+    { x: clamp(px, 0, w), y: 0, d: clamp(px, 0, w) },
+    { x: w, y: clamp(py, 0, h), d: w + clamp(py, 0, h) },
+    { x: clamp(px, 0, w), y: h, d: w + h + (w - clamp(px, 0, w)) },
+    { x: 0, y: clamp(py, 0, h), d: 2 * w + h + (h - clamp(py, 0, h)) },
+  ];
+  let best = cands[0];
+  let bestD2 = Infinity;
+  for (const c of cands) {
+    const d2 = (c.x - px) ** 2 + (c.y - py) ** 2;
+    if (d2 < bestD2) { bestD2 = d2; best = c; }
+  }
+  return best.d;
+}
+// Default attach point, as a perimeter distance: the old auto-assigned
+// portTop vertical offset, on the same edge as before (right for "from",
+// left for "to"), so the default look is unchanged.
+function defaultPortDist(node, link, end) {
+  const px = portTop(node, end === "from" ? link.outIndex : link.inIndex, end === "from" ? outSlot[link.from] : inSlot[link.to]);
+  return verticalToPerim(node, end, px);
+}
 function portOffset(node, link, end) {
-  const stored = readPortStore()[link.from + ">" + link.to + ":" + end];
-  if (Number.isFinite(stored)) return Math.min(renderedH(node), Math.max(0, stored));
+  const key = link.from + ">" + link.to + ":" + end;
+  const stored = readPortStore()[key];
+  if (Number.isFinite(stored)) return normPortDist(node, stored, defaultPortDist(node, link, end));
   // Shared baseline (state.json), under this browser's localStorage.
-  const shared = sharedState?.front?.wirePorts?.[link.from + ">" + link.to + ":" + end];
-  if (Number.isFinite(shared)) return Math.min(renderedH(node), Math.max(0, shared));
-  // Default keeps the old look: the old auto-assigned portTop offset.
-  return portTop(node, end === "from" ? link.outIndex : link.inIndex, end === "from" ? outSlot[link.from] : inSlot[link.to]);
+  // Baseline values are perimeter distances (Copy wire positions has
+  // saved them that way since the four-side change).
+  const shared = sharedState?.front?.wirePorts?.[key];
+  if (Number.isFinite(shared)) return normPortDist(node, shared, defaultPortDist(node, link, end));
+  return defaultPortDist(node, link, end);
 }
 function portPos(link, end) {
   const node = byId[end === "from" ? link.from : link.to];
-  return {
-    x: end === "from" ? node.x + node.w : node.x,
-    y: node.y + portOffset(node, link, end),
-  };
+  return portPointAt(node, portOffset(node, link, end));
 }
 
 const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -347,7 +430,8 @@ world.append(svg);
 
 const wires = [];
 
-// Small dots at each wire end — grab one and drag it up/down the module edge.
+// Small dots at each wire end — grab one and drag it all the way around
+// the module edge.
 // They live in their own overlay svg (appended to #world after the nodes,
 // at the bottom of this file), so they sit ABOVE the modules instead of
 // underneath them in #wires, where the module would swallow the grab.
@@ -519,10 +603,11 @@ function buildWireOverlays() {
       hit.style.cursor = "grabbing";
       const onMove = (ev) => {
         const rect = viewport.getBoundingClientRect();
+        const worldX = (ev.clientX - rect.left - x) / scale;
         const worldY = (ev.clientY - rect.top - y) / scale;
         const node = byId[end === "from" ? link.from : link.to];
-        const px = Math.min(renderedH(node), Math.max(0, worldY - node.y));
-        writePortStore(link.from + ">" + link.to, end, Math.round(px));
+        const d = nearestPerimeter(node, worldX - node.x, worldY - node.y);
+        writePortStore(link.from + ">" + link.to, end, Math.round(d));
         redrawWires();
       };
       const onUp = () => {
