@@ -607,19 +607,19 @@ function buildWireOverlays() {
   for (let li = 0; li < routed.length; li++) {
   const link = routed[li];
   for (const end of ["from", "to"]) {
-    // Invisible grab area (r=14) under a clearly visible dot (r=7, thick ring).
+    // Invisible grab area (r=12) under a clearly visible dot (r=6, thick ring).
     const hit = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     hit.setAttribute("class", "wire-handle-hit");
-    hit.setAttribute("r", "14");
+    hit.setAttribute("r", "12");
     hit.setAttribute("fill", "transparent");
     hit.style.cursor = "grab";
     hit.style.pointerEvents = "all";
     const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     dot.setAttribute("class", "wire-handle");
-    dot.setAttribute("r", "7");
+    dot.setAttribute("r", "6");
     dot.setAttribute("fill", "#fff");
     dot.setAttribute("stroke", "#111");
-    dot.setAttribute("stroke-width", "2.5");
+    dot.setAttribute("stroke-width", "2");
     dot.style.pointerEvents = "none";
     hit.addEventListener("pointerdown", (event) => {
       event.stopPropagation();
