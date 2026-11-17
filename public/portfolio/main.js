@@ -197,98 +197,60 @@ function writePosStore(moduleId, px, py) {
   } catch {}
 }
 
-// Resized module sizes (see the resize-handles section below): a
-// per-axis scale per module id, { sx, sy }, 1 = natural size. Width and
-// height resize INDEPENDENTLY — dragging a corner can make a tile wider
-// without making it taller, or taller without making it wider; there is
-// no aspect-ratio lock. The shared state.json baseline (front.sizes)
-// sits UNDER this browser's localStorage, same as positions — a
-// repo-saved size can be added later without a code change. Older
-// stores (from the first, proportional test version) held a single
-// number: that still reads as a uniform { sx: s, sy: s }.
+// Resized module sizes (see the resize-handles section below): a scale
+// factor per module id, 1 = natural size. Dragging a corner scales the
+// tile PROPORTIONALLY — width and height change together, the aspect
+// ratio is kept, so a cover photo never distorts. The shared state.json
+// baseline (front.sizes) sits UNDER this browser's localStorage, same as
+// positions — a repo-saved size can be added later without a code change.
+// Older stores held a single number (or { scale }): that still reads as
+// the scale. Stores from the free-resize version held { sx, sy }: equal
+// axes read as that scale, differing axes read as their AVERAGE, so a
+// tile stretched in one direction comes back near its current size
+// instead of jumping to one axis or the other.
 const sizeKey = "portfolio-module-sizes";
 function readSizeStore() {
   try { return JSON.parse(localStorage.getItem(sizeKey)) || {}; } catch { return {}; }
 }
-function writeSizeStore(moduleId, sx, sy) {
+function writeSizeStore(moduleId, scale) {
   const store = readSizeStore();
-  const rx = Math.round(sx * 1000) / 1000;
-  const ry = Math.round(sy * 1000) / 1000;
-  if (Math.abs(rx - 1) > 0.001 || Math.abs(ry - 1) > 0.001) store[moduleId] = { sx: rx, sy: ry };
+  if (Number.isFinite(scale) && Math.abs(scale - 1) > 0.001) store[moduleId] = Math.round(scale * 1000) / 1000;
   else delete store[moduleId];
   try { localStorage.setItem(sizeKey, JSON.stringify(store)); } catch {}
 }
-// A saved size as { sx, sy }: a plain number (or { scale }) means a
-// uniform resize from the earlier proportional version; { sx, sy } is
-// the free-resize form.
-function savedSizeFor(moduleId) {
-  let s = { sx: 1, sy: 1 };
-  const parseSize = (v) => {
-    if (Number.isFinite(v)) return { sx: v, sy: v };
+function savedScaleFor(moduleId) {
+  let s = null;
+  const parseScale = (v) => {
+    if (Number.isFinite(v)) return v;
     if (v && typeof v === "object") {
-      if (Number.isFinite(v.sx) && Number.isFinite(v.sy)) return { sx: v.sx, sy: v.sy };
-      if (Number.isFinite(v.scale)) return { sx: v.scale, sy: v.scale };
+      if (Number.isFinite(v.scale)) return v.scale;
+      if (Number.isFinite(v.sx) && Number.isFinite(v.sy)) return (v.sx + v.sy) / 2;
     }
     return null;
   };
-  const shared = parseSize(sharedState?.front?.sizes?.[moduleId]);
-  if (shared) s = shared;
-  const local = parseSize(readSizeStore()[moduleId]);
-  if (local) s = local;
-  return {
-    sx: Number.isFinite(s.sx) && s.sx > 0 ? s.sx : 1,
-    sy: Number.isFinite(s.sy) && s.sy > 0 ? s.sy : 1,
-  };
+  const shared = parseScale(sharedState?.front?.sizes?.[moduleId]);
+  if (shared !== null) s = shared;
+  const local = parseScale(readSizeStore()[moduleId]);
+  if (local !== null) s = local;
+  return Number.isFinite(s) && s > 0 ? s : 1;
 }
-// A cover photo must NOT stretch when its tile is stretched: the tile
-// is scaled with a non-uniform transform, which would widen a face
-// sideways. Undo the stretch on the cover itself — size the
-// <img>/<video> to the tile's VISUAL preview size and scale it back by
-// 1/sx, 1/sy, so the photo crops (object-fit: cover) instead of
-// distorting. Called whenever a tile's size is applied, and when a
-// cover is added to an already-resized tile (see showMedia). Text
-// still stretches with the tile; sketches are left alone.
-function fitTileMedia(module) {
-  if (!module.el) return;
-  const preview = module.el.querySelector(".preview");
-  const pw = (preview && preview.offsetWidth) || module.baseW || 240;
-  const ph = (preview && preview.offsetHeight) || 132;
-  const sx = module.sx || 1;
-  const sy = module.sy || 1;
-  for (const media of module.el.querySelectorAll(".media")) {
-    if (sx === 1 && sy === 1) {
-      media.style.width = "";
-      media.style.height = "";
-      media.style.transform = "";
-      media.style.transformOrigin = "";
-      continue;
-    }
-    media.style.width = `${Math.round(pw * sx)}px`;
-    media.style.height = `${Math.round(ph * sy)}px`;
-    media.style.transform = `scale(${1 / sx}, ${1 / sy})`;
-    media.style.transformOrigin = "0 0";
-  }
-}
-// Apply a free resize to a tile: the visible box is a CSS transform
-// (origin top-left), so the layout box stays the natural size while the
-// visible box — and the wire ports, which read renderedW/renderedH —
-// follow the per-axis scale. module.w/h hold the resized logical size,
-// so the view framing (networkSpan) sees the resized tile. The content
-// (cover, sketches, text) stretches with the tile, so nothing inside
-// reflows or clips when a tile is made wider or taller — except the
-// cover photo, which fitTileMedia keeps undistorted (see above).
-function setModuleSize(module, sx, sy) {
-  module.sx = sx;
-  module.sy = sy;
+// Apply a scale to a tile: the visible box is a CSS transform (origin
+// top-left), so the layout box stays the natural size while the visible
+// box — and the wire ports, which read renderedW/renderedH — follow the
+// scale. module.w/h hold the scaled logical size, so the view framing
+// (networkSpan) sees the resized tile. The content (cover, sketches,
+// text) scales with the tile, so nothing inside reflows or clips when a
+// tile is made bigger or smaller.
+function setModuleScale(module, s) {
+  module.scale = s;
   const bw = (Number.isFinite(module.baseW) && module.baseW > 0) ? module.baseW : module.w;
   const bh = (Number.isFinite(module.baseH) && module.baseH > 0) ? module.baseH : module.h;
-  module.w = Math.round(bw * sx);
-  module.h = Math.round(bh * sy);
+  module.w = Math.round(bw * s);
+  module.h = Math.round(bh * s);
   if (module.el) {
-    module.el.style.transform = (sx === 1 && sy === 1) ? "" : `scale(${sx}, ${sy})`;
+    module.el.style.transform = s === 1 ? "" : `scale(${s})`;
     module.el.style.transformOrigin = "0 0";
   }
-  fitTileMedia(module);
 }
 
 // Baseline from state.json, UNDER localStorage (restored just below,
@@ -455,22 +417,21 @@ function writePortStore(linkKey, end, px) {
     localStorage.removeItem(oldestPortKey);
   } catch {}
 })();
-// Rendered size follows the free resize: the tile's layout box stays
-// its natural size (the per-axis scale is a transform), so the resized
-// size is natural size x per-axis scale. baseW/baseH are measured at
-// build time; before that, offsetWidth (unscaled) or the data size do
-// the same job.
+// Rendered size follows the resize: the tile's layout box stays its
+// natural size (the scale is a transform), so the resized size is
+// natural size x scale. baseW/baseH are measured at build time; before
+// that, offsetWidth (unscaled) or the data size do the same job.
 function renderedW(node) {
-  const sx = node.sx || 1;
+  const s = node.scale || 1;
   const base = (Number.isFinite(node.baseW) && node.baseW > 0) ? node.baseW
-    : (node.el && node.el.offsetWidth) || (Number.isFinite(node.w) ? node.w / sx : 112);
-  return base * sx;
+    : (node.el && node.el.offsetWidth) || (Number.isFinite(node.w) ? node.w / s : 112);
+  return base * s;
 }
 function renderedH(node) {
-  const sy = node.sy || 1;
+  const s = node.scale || 1;
   const base = (Number.isFinite(node.baseH) && node.baseH > 0) ? node.baseH
-    : (node.el && node.el.offsetHeight) || (Number.isFinite(node.h) ? node.h / sy : 84);
-  return base * sy;
+    : (node.el && node.el.offsetHeight) || (Number.isFinite(node.h) ? node.h / s : 84);
+  return base * s;
 }
 function perim(node) {
   return 2 * (renderedW(node) + renderedH(node));
@@ -780,22 +741,18 @@ function refreshWireDots() {
 
 // ---- Resizing a module (front page only) ----
 // Left-click a module to select it and four little "+" handles appear at
-// its corners; drag a corner to resize the tile FREELY — width and
-// height change independently, so a tile can be made wider without
-// getting taller, or taller without getting wider. There is no
-// aspect-ratio lock: the new width follows the pointer's horizontal
-// distance from the anchored (opposite) corner and the new height
-// follows its vertical distance. Works for built-ins and custom
-// modules alike. Lock layout locks resizing too, like dragging. Sizes
-// persist in localStorage (portfolio-module-sizes, see the size store
-// near the top) and are included in Copy layout.
+// its corners; drag a corner to resize the tile proportionally — the
+// aspect ratio is kept and the opposite corner stays put, so the tile
+// grows/shrinks around it. Works for built-ins and custom modules
+// alike. Lock layout locks resizing too, like dragging. Sizes persist
+// in localStorage (portfolio-module-sizes, see the size store near the
+// top) and are included in Copy layout.
 // The handles live in the same world-space overlay svg as the wire dots,
 // so they sit above the tiles and follow the view; a pointer down on a
 // handle never reaches the tile, so a resize can never start a body
 // drag by accident.
 const resizeHandles = [];
 const MIN_TILE_W = 56;
-const MIN_TILE_H = 40;
 const MAX_TILE_W = 720;
 const MAX_TILE_SCALE = 3;
 // Set for ~100ms after a resize drag ends, so the click the browser
@@ -803,14 +760,11 @@ const MAX_TILE_SCALE = 3;
 // empty canvas instead of the handle (see the viewport click handler
 // below) — otherwise the handles vanish after every resize.
 let justResized = false;
-function resizeSizeLimits(module) {
+function resizeScaleLimits(module) {
   const bw = (Number.isFinite(module.baseW) && module.baseW > 0) ? module.baseW : 112;
-  const bh = (Number.isFinite(module.baseH) && module.baseH > 0) ? module.baseH : 84;
   return {
-    minSx: MIN_TILE_W / bw,
-    maxSx: Math.min(MAX_TILE_SCALE, MAX_TILE_W / bw),
-    minSy: MIN_TILE_H / bh,
-    maxSy: MAX_TILE_SCALE,
+    min: Math.max(0.35, MIN_TILE_W / bw),
+    max: Math.min(MAX_TILE_SCALE, MAX_TILE_W / bw),
   };
 }
 function resizeCorners(module) {
@@ -880,16 +834,13 @@ for (let ci = 0; ci < 4; ci++) {
     const anchorY = (corner.anchor === "bl" || corner.anchor === "br") ? module.y + renderedH(module) : module.y;
     const baseW = (Number.isFinite(module.baseW) && module.baseW > 0) ? module.baseW : renderedW(module);
     const baseH = (Number.isFinite(module.baseH) && module.baseH > 0) ? module.baseH : renderedH(module);
-    const startW = renderedW(module);
-    const startH = renderedH(module);
-    const limits = resizeSizeLimits(module);
+    const baseDiag = Math.hypot(baseW, baseH);
+    const startScale = module.scale || 1;
+    const limits = resizeScaleLimits(module);
     // Wire ports keep their RELATIVE spot on the perimeter while the
-    // tile resizes: each stored distance is remapped live during the
-    // drag — its point on the old rectangle is stretched by the same
-    // width/height ratios as the tile, then read back on the new
-    // rectangle — so the dots stay glued to the edge instead of
-    // drifting and snapping back at the end. Width and height change
-    // by different amounts, so a single uniform ratio would be wrong.
+    // tile resizes: each stored distance is scaled by the same ratio as
+    // the tile, live during the drag, so the dots stay glued to the
+    // edge instead of drifting and snapping back at the end.
     const portOrigins = [];
     for (const link of routed) {
       for (const end of ["from", "to"]) {
@@ -922,15 +873,14 @@ for (let ci = 0; ci < 4; ci++) {
       const rect = viewport.getBoundingClientRect();
       const wx = (ev.clientX - rect.left - x) / scale;
       const wy = (ev.clientY - rect.top - y) / scale;
-      // Free resize: width follows the pointer's horizontal distance
-      // from the anchored (opposite) corner, height follows its
-      // vertical distance — independently, no aspect-ratio lock.
-      const newW = Math.abs(wx - anchorX);
-      const newH = Math.abs(wy - anchorY);
-      const sx = Math.min(limits.maxSx, Math.max(limits.minSx, newW / baseW));
-      const sy = Math.min(limits.maxSy, Math.max(limits.minSy, newH / baseH));
-      if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx <= 0 || sy <= 0) return;
-      setModuleSize(module, sx, sy);
+      // Proportional resize: the scale follows the pointer's distance
+      // from the anchored (opposite) corner, so the tile keeps its
+      // aspect ratio no matter which way the corner is dragged.
+      let s = Math.hypot(wx - anchorX, wy - anchorY) / baseDiag;
+      if (!Number.isFinite(s) || s <= 0) return;
+      s = Math.min(limits.max, Math.max(limits.min, s));
+      const ratio = s / startScale;
+      setModuleScale(module, s);
       const w = renderedW(module);
       const h = renderedH(module);
       if (corner.anchor === "br" || corner.anchor === "tr") module.x = anchorX - w;
@@ -938,9 +888,7 @@ for (let ci = 0; ci < 4; ci++) {
       module.el.style.left = `${module.x}px`;
       module.el.style.top = `${module.y}px`;
       for (const p of portOrigins) {
-        const pt = pointOnPerim(startW, startH, p.d0);
-        const d = distOnPerim(w, h, pt.x * (w / startW), pt.y * (h / startH));
-        writePortStore(p.link.from + ">" + p.link.to, p.end, Math.round(d));
+        writePortStore(p.link.from + ">" + p.link.to, p.end, Math.round(p.d0 * ratio));
       }
       redrawWires();
     };
@@ -948,7 +896,7 @@ for (let ci = 0; ci < 4; ci++) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
-      writeSizeStore(module.id, module.sx || 1, module.sy || 1);
+      writeSizeStore(module.id, module.scale || 1);
       writePosStore(module.id, Math.round(module.x), Math.round(module.y));
       redrawWires();
       // Handles back on the (moved) corners — redrawWires already
@@ -1007,11 +955,6 @@ function showMedia(preview, blob, type, url) {
     media.playsInline = true;
   }
   preview.append(media);
-  // A cover added to an already-resized tile gets the same
-  // counter-stretch as one present at resize time, so it crops
-  // instead of distorting.
-  const module = modules.find((m) => m.el && m.el.contains(preview));
-  if (module) fitTileMedia(module);
 }
 
 async function saveMedia(moduleId, file) {
@@ -1583,8 +1526,8 @@ for (const module of modules) buildModule(module);
 // Apply any saved resize sizes (repo baseline under localStorage),
 // before the first framing — so the view fits the resized tiles.
 for (const module of modules) {
-  const size = savedSizeFor(module.id);
-  if (size.sx !== 1 || size.sy !== 1) setModuleSize(module, size.sx, size.sy);
+  const s = savedScaleFor(module.id);
+  if (s !== 1) setModuleScale(module, s);
 }
 
 // ---- Custom modules + custom wires ("Add module" / "Add wire") ----
@@ -1774,15 +1717,14 @@ async function moduleHasCover(moduleId) {
 // user knows to send the image file along for saving to the repo).
 async function layoutCopyText() {
   const layout = currentLayout();
-  // Resized modules: per-axis scale + logical size, so Muse can save
+  // Resized modules: scale + logical size, so Muse can save
   // them as repo defaults (state.json front.sizes) later. Only modules
   // whose size actually changed are listed; the rest use the code defaults.
   const sizes = {};
   for (const m of modules) {
-    const sx = m.sx || 1;
-    const sy = m.sy || 1;
-    if (Math.abs(sx - 1) > 0.001 || Math.abs(sy - 1) > 0.001) {
-      sizes[m.id] = { sx: Math.round(sx * 1000) / 1000, sy: Math.round(sy * 1000) / 1000, w: Math.round(renderedW(m)), h: Math.round(renderedH(m)) };
+    const s = m.scale || 1;
+    if (Math.abs(s - 1) > 0.001) {
+      sizes[m.id] = { scale: Math.round(s * 1000) / 1000, w: Math.round(renderedW(m)), h: Math.round(renderedH(m)) };
     }
   }
   if (Object.keys(sizes).length) layout.sizes = sizes;
@@ -1795,8 +1737,7 @@ async function layoutCopyText() {
         title: m.title || m.kind,
         x: Math.round(m.x),
         y: Math.round(m.y),
-        sx: Math.round((m.sx || 1) * 1000) / 1000,
-        sy: Math.round((m.sy || 1) * 1000) / 1000,
+        scale: Math.round((m.scale || 1) * 1000) / 1000,
         hasCover: await moduleHasCover(m.id),
       });
     }
