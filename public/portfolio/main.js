@@ -36,8 +36,8 @@ try {
 const modules = [
   {
     id: "artist",
-    x: -204,
-    y: 126,
+    x: 1,
+    y: 242,
     w: 240,
     h: 292,
     kind: "Artist information",
@@ -47,8 +47,8 @@ const modules = [
   },
   {
     id: "works",
-    x: 383,
-    y: 95,
+    x: 769,
+    y: 512,
     w: 240,
     h: 292,
     kind: "Digital art works",
@@ -58,8 +58,8 @@ const modules = [
   },
   {
     id: "3d",
-    x: 76,
-    y: 427,
+    x: 331,
+    y: 581,
     w: 240,
     h: 292,
     kind: "3D design",
@@ -67,9 +67,9 @@ const modules = [
     body: "Character and object design in Maya, Blender, ZBrush, and Fusion.",
     preview: previewForm,
   },
-  { id: "p5", x: 164, y: 82, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
-  { id: "vj", x: 162, y: 185, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
-  { id: "video", x: 164, y: 288, w: 112, h: 84, small: true, kind: "Fine art", preview: () => previewOp("film") },
+  { id: "p5", x: 404, y: 213, w: 112, h: 84, small: true, kind: "p5.js", preview: () => previewOp("p5") },
+  { id: "vj", x: 427, y: 324, w: 112, h: 84, small: true, kind: "VJ", preview: () => previewOp("wave") },
+  { id: "video", x: 416, y: 440, w: 112, h: 84, small: true, kind: "Fine art", preview: () => previewOp("film") },
 ];
 
 // Custom modules the user added with "Add module": their definitions
@@ -111,11 +111,31 @@ function readRemovedLinks() {
 function writeRemovedLinks(list) {
   try { localStorage.setItem(removedLinksKey, JSON.stringify(list)); } catch {}
 }
-// Restore custom modules saved in this browser, before the position
-// restores below (dragged positions still win over the fallback here).
-for (const def of readCustomStore()) {
-  if (!def || typeof def.id !== "string" || !def.id.startsWith("custom-")) continue;
-  if (modules.some((m) => m.id === def.id)) continue;
+// Custom modules saved as repo defaults (front page layout 2026-11-16):
+// they appear for every visitor, not just in the browser that added
+// them. Titles kept exactly as the user gave them, including "yiu".
+// None of these has a cover. Precedence, like positions: this browser's
+// own localStorage store wins, then the shared state.json baseline,
+// then this hardcoded fallback (used only if state.json fails to load).
+const defaultCustomModules = [
+  { id: "custom-1", title: "New module", x: -249, y: 297 },
+  { id: "custom-2", title: "New module", x: 94, y: 562 },
+  { id: "custom-3", title: "New module", x: 141, y: 623 },
+  { id: "custom-4", title: "yiu", x: -229, y: 408 },
+];
+// A repo-saved custom module removed with × stays removed in this
+// browser (same idea as portfolio-removed-links for wires).
+const removedCustomsKey = "portfolio-removed-customs";
+function readRemovedCustoms() {
+  try {
+    const list = JSON.parse(localStorage.getItem(removedCustomsKey)) || [];
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+}
+function addCustomDef(def) {
+  if (!def || typeof def.id !== "string" || !def.id.startsWith("custom-")) return;
+  if (modules.some((m) => m.id === def.id)) return;
+  if (readRemovedCustoms().includes(def.id)) return;
   const title = typeof def.title === "string" && def.title ? def.title : "New module";
   modules.push({
     id: def.id,
@@ -129,6 +149,11 @@ for (const def of readCustomStore()) {
     custom: true,
   });
 }
+// Restore custom modules, before the position restores below (dragged
+// positions still win over the fallback here).
+for (const def of readCustomStore()) addCustomDef(def);
+for (const def of sharedState?.front?.customModules || []) addCustomDef(def);
+for (const def of defaultCustomModules) addCustomDef(def);
 const posKey = "portfolio-module-positions";
 const lockKey = "portfolio-layout-locked";
 let layoutLocked = true;
@@ -1207,6 +1232,14 @@ function removeCustomModule(id) {
   if (mi >= 0) modules.splice(mi, 1);
   delete byId[id];
   writeCustomStore(readCustomStore().filter((d) => d.id !== id));
+  // Remember the removal so a repo-saved default does not bring it back.
+  try {
+    const removed = readRemovedCustoms();
+    if (!removed.includes(id)) {
+      removed.push(id);
+      localStorage.setItem(removedCustomsKey, JSON.stringify(removed));
+    }
+  } catch {}
   const pos = readPosStore();
   if (id in pos) { delete pos[id]; try { localStorage.setItem(posKey, JSON.stringify(pos)); } catch {} }
   const text = readTextStore();

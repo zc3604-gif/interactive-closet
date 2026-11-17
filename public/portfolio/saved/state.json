@@ -2,30 +2,76 @@
   "front": {
     "positions": {
       "3d": {
-        "x": 76,
-        "y": 427
+        "x": 331,
+        "y": 581
       },
       "artist": {
-        "x": -204,
-        "y": 126
+        "x": 1,
+        "y": 242
+      },
+      "custom-1": {
+        "x": -249,
+        "y": 297
+      },
+      "custom-2": {
+        "x": 94,
+        "y": 562
+      },
+      "custom-3": {
+        "x": 141,
+        "y": 623
+      },
+      "custom-4": {
+        "x": -229,
+        "y": 408
       },
       "p5": {
-        "x": 164,
-        "y": 82
+        "x": 404,
+        "y": 213
       },
       "video": {
-        "x": 164,
-        "y": 288
+        "x": 416,
+        "y": 440
       },
       "vj": {
-        "x": 162,
-        "y": 185
+        "x": 427,
+        "y": 324
       },
       "works": {
-        "x": 383,
-        "y": 95
+        "x": 769,
+        "y": 512
       }
     },
+    "customModules": [
+      {
+        "id": "custom-1",
+        "title": "New module",
+        "x": -249,
+        "y": 297,
+        "hasCover": false
+      },
+      {
+        "id": "custom-2",
+        "title": "New module",
+        "x": 94,
+        "y": 562,
+        "hasCover": false
+      },
+      {
+        "id": "custom-3",
+        "title": "New module",
+        "x": 141,
+        "y": 623,
+        "hasCover": false
+      },
+      {
+        "id": "custom-4",
+        "title": "yiu",
+        "x": -229,
+        "y": 408,
+        "hasCover": false
+      }
+    ],
     "view": null,
     "wirePorts": {}
   },
