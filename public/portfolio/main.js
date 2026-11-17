@@ -98,6 +98,22 @@ function readCustomLinks() {
 function writeCustomLinks(list) {
   try { localStorage.setItem(customLinksKey, JSON.stringify(list)); } catch {}
 }
+// Custom modules the user deleted (Backspace or the × button): their
+// ids are remembered here so a repo-saved custom module — one that
+// comes back from the shared state.json baseline — is not resurrected
+// on reload. Local-only defs are dropped from portfolio-custom-modules
+// on removal anyway; this key covers the repo-saved ones. A reused id
+// is cleared from this list when a new module takes it (addCustomModule).
+const removedCustomsKey = "portfolio-removed-customs";
+function readRemovedCustoms() {
+  try {
+    const list = JSON.parse(localStorage.getItem(removedCustomsKey)) || [];
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+}
+function writeRemovedCustoms(list) {
+  try { localStorage.setItem(removedCustomsKey, JSON.stringify(list)); } catch {}
+}
 // Wires the user deleted with Backspace: built-in pairs remembered here
 // so they stay deleted across reloads (custom wires are dropped from
 // portfolio-custom-links instead, so they can be re-added cleanly).
@@ -113,8 +129,13 @@ function writeRemovedLinks(list) {
 }
 // Restore custom modules saved in this browser, before the position
 // restores below (dragged positions still win over the fallback here).
+// A custom module the user deleted stays deleted: ids recorded in
+// portfolio-removed-customs are skipped, so a repo-saved module (once
+// the saved-layout branch lands) is not resurrected on reload.
+const removedCustoms = readRemovedCustoms();
 for (const def of readCustomStore()) {
   if (!def || typeof def.id !== "string" || !def.id.startsWith("custom-")) continue;
+  if (removedCustoms.includes(def.id)) continue;
   if (modules.some((m) => m.id === def.id)) continue;
   const title = typeof def.title === "string" && def.title ? def.title : "New module";
   modules.push({
@@ -355,6 +376,9 @@ const wireHitPaths = [];
 function wireKey(link) { return link.from + ">" + link.to; }
 function selectWire(link) {
   selectedWireKey = link ? wireKey(link) : null;
+  // A wire selection drops any module selection (selectModule(null)
+  // only clears the outline, so this cannot recurse).
+  if (link) selectModule(null);
   refreshWireSelection();
 }
 function refreshWireSelection() {
@@ -366,6 +390,40 @@ function refreshWireSelection() {
   for (const h of wireHandles) {
     h.dot.setAttribute("fill", selectedWireKey === wireKey(h.link) ? "#111" : "#fff");
   }
+}
+// ---- Selecting + deleting a module (Backspace) ----
+// Front page only, mirrors the wire delete above: click a module tile
+// to select it (thick black outline, same look as a selected wire),
+// Backspace deletes it. Only custom modules can be deleted — built-ins
+// are navigation and stay, so Backspace with a built-in selected does
+// nothing. Selecting a module drops any selected wire and vice versa,
+// so Backspace is never ambiguous. Esc or clicking empty canvas
+// deselects. Selection is kept as a module id (not the element) so it
+// survives rebuilds.
+let selectedModuleId = null;
+function selectModule(id) {
+  if (selectedModuleId === id) return;
+  if (selectedModuleId && byId[selectedModuleId] && byId[selectedModuleId].el) {
+    byId[selectedModuleId].el.style.outline = "";
+    byId[selectedModuleId].el.style.outlineOffset = "";
+  }
+  selectedModuleId = id || null;
+  if (id) {
+    // A module selection drops any wire selection (and refreshWireSelection
+    // is called directly here, not via selectWire, to avoid recursion).
+    selectedWireKey = null;
+    refreshWireSelection();
+    const el = byId[id] && byId[id].el;
+    if (el) { el.style.outline = "3px solid #111"; el.style.outlineOffset = "2px"; }
+  }
+}
+function deleteSelectedModule() {
+  const id = selectedModuleId;
+  if (!id) return;
+  const module = byId[id];
+  if (!module || !module.custom) return; // Built-ins cannot be deleted.
+  selectModule(null);
+  removeCustomModule(id);
 }
 function deleteSelectedWire() {
   if (!selectedWireKey) return;
@@ -1072,9 +1130,21 @@ function buildModule(module) {
     if (wirePicking) { pickModuleForWire(module.id); return; }
     if (justDragged) return;
     if (event.target.closest("[contenteditable], .upload, .media, input, .remove-custom")) return;
-    const page = workPages[module.id];
-    if (page) window.location.href = page;
+    // Click selects the module (thick black outline, like a selected
+    // wire); navigation moved to double-click so a click never opens a
+    // page by accident while selecting. Double-click still renames a
+    // custom module (its own handler above).
+    selectModule(module.id);
   });
+  if (!module.custom) {
+    // Built-in modules open their works page on double-click.
+    node.addEventListener("dblclick", (event) => {
+      if (wirePicking) return;
+      if (event.target.closest("[contenteditable], .upload, .media, input, .remove-custom")) return;
+      const page = workPages[module.id];
+      if (page) window.location.href = page;
+    });
+  }
   world.append(node);
   loadSavedMedia(module.id, preview).then(() => {
     if (module.id !== "p5" && module.id !== "vj" && module.id !== "video" && module.id !== "works" && module.id !== "3d") return loadMedia(module.id, preview);
@@ -1097,6 +1167,8 @@ function setWirePicking(on) {
   // Starting to pick a new wire drops any selected wire, so Backspace
   // cannot delete it by accident while picking modules.
   if (on) selectWire(null);
+  // Picking also drops any selected module, for the same reason.
+  if (on) selectModule(null);
   if (!on) {
     if (wirePickFrom && byId[wirePickFrom] && byId[wirePickFrom].el) {
       byId[wirePickFrom].el.style.outline = "";
@@ -1171,6 +1243,12 @@ function addCustomModule(title) {
   };
   modules.push(module);
   byId[id] = module;
+  // If this id was deleted before (and recorded in
+  // portfolio-removed-customs), the new module takes it over, so the
+  // old removal must not hide it on the next reload.
+  const removedCustoms = readRemovedCustoms();
+  const removedIndex = removedCustoms.indexOf(id);
+  if (removedIndex >= 0) { removedCustoms.splice(removedIndex, 1); writeRemovedCustoms(removedCustoms); }
   const defs = readCustomStore();
   defs.push({ id, title, x: module.x, y: module.y });
   writeCustomStore(defs);
@@ -1180,10 +1258,19 @@ function addCustomModule(title) {
 function removeCustomModule(id) {
   const module = byId[id];
   if (!module || !module.custom) return;
+  if (selectedModuleId === id) selectModule(null);
   if (wirePickFrom === id) setWirePicking(false);
   if (selectedWireKey) {
     const [a, b] = selectedWireKey.split(">");
     if (a === id || b === id) selectWire(null);
+  }
+  // Remember the deletion so a repo-saved custom module (state.json
+  // baseline) is not resurrected on reload; local-only defs are
+  // dropped from the custom store just below.
+  const removedCustoms = readRemovedCustoms();
+  if (!removedCustoms.includes(id)) {
+    removedCustoms.push(id);
+    writeRemovedCustoms(removedCustoms);
   }
   // Remove wires touching this module (and their saved port positions).
   const touched = links.filter(([a, b]) => a === id || b === id);
@@ -1268,6 +1355,11 @@ async function layoutCopyText() {
   }
   const removedLinks = readRemovedLinks();
   if (removedLinks.length) layout.removedLinks = removedLinks;
+  // Deleted custom modules no longer appear in customModules above
+  // (they are gone from `modules`); list them too, so Muse can drop
+  // a repo-saved one instead of it coming back on reload.
+  const removedCustoms = readRemovedCustoms();
+  if (removedCustoms.length) layout.removedCustomModules = removedCustoms;
   return JSON.stringify(layout, null, 2);
 }
 
@@ -1370,17 +1462,29 @@ async function layoutCopyText() {
   });
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && wirePicking) setWirePicking(false);
-    // Esc also drops a selected wire.
-    if (event.key === "Escape") selectWire(null);
-    // Backspace deletes the selected wire — Backspace only, not Delete.
-    // Never while typing in a title/body (contenteditable) or an input:
-    // a prompt() blocks key events while it is open, so no extra guard
-    // is needed for it. preventDefault stops the browser going back.
-    if (event.key === "Backspace" && selectedWireKey) {
+    // Esc also drops a selected wire or module.
+    if (event.key === "Escape") { selectWire(null); selectModule(null); }
+    // Backspace deletes the selected wire or module — Backspace only,
+    // not Delete. Never while typing in a title/body (contenteditable)
+    // or an input: a prompt() blocks key events while it is open, so
+    // no extra guard is needed for it. preventDefault stops the
+    // browser going back. A wire selection wins over a module one
+    // (the two can never both be selected), and a selected built-in
+    // module is never deleted.
+    if (event.key === "Backspace" && (selectedWireKey || selectedModuleId)) {
       const target = event.target;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
-      event.preventDefault();
-      deleteSelectedWire();
+      if (wirePicking) return;
+      if (selectedWireKey) {
+        event.preventDefault();
+        deleteSelectedWire();
+      } else if (selectedModuleId) {
+        const module = byId[selectedModuleId];
+        if (module && module.custom) {
+          event.preventDefault();
+          deleteSelectedModule();
+        }
+      }
     }
   });
   bar.append(copyBtn, wireBtn, wireLockBtn, lockBtn, viewBtn, addModuleBtn, addWireBtn);
@@ -1513,14 +1617,15 @@ function zoomAt(clientX, nextScale) {
   applyView();
 }
 
-// Clicking empty canvas drops a selected wire. Clicks on a module or a
-// wire stop short of here: modules guard with closest(".node"), a wire
-// click stops propagation on its hit path, and port-dot clicks are
-// guarded below too.
+// Clicking empty canvas drops a selected wire or module. Clicks on a
+// module or a wire stop short of here: modules guard with
+// closest(".node"), a wire click stops propagation on its hit path, and
+// port-dot clicks are guarded below too.
 viewport.addEventListener("click", (event) => {
-  if (!selectedWireKey) return;
+  if (!selectedWireKey && !selectedModuleId) return;
   if (event.target.closest(".node, .wire-handle-hit, .wire-handle, .wire-hit")) return;
   selectWire(null);
+  selectModule(null);
 });
 
 viewport.addEventListener(
