@@ -1,4 +1,4 @@
-# Interactive Closet
+# Coding
 
 Web viewer for Maya clothing: mouse-reactive fabric now, your exported closet next.
 
